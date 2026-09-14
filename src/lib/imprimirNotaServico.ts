@@ -72,18 +72,31 @@ function fm(v: number | string | null | undefined): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function fmtData(d?: string | Date | null): string {
-  if (!d) return '—';
-  const dt = typeof d === 'string' ? new Date(d) : d;
-  if (isNaN(dt.getTime())) return '—';
-  return dt.toLocaleDateString('pt-BR');
-}
-
 function fmtH(d?: string | Date | null): string {
   if (!d) return '—';
   const dt = typeof d === 'string' ? new Date(d) : d;
   if (isNaN(dt.getTime())) return '—';
   return dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ============================================================================
+// FORMATO ÚNICO DE DATA + HORA DE TODAS AS NOTAS (AJUSTE 2)
+// ============================================================================
+// Padrão: dd/MM/yyyy - HH:mm   (ex.: 05/09/2026 - 00:02)
+// Nenhuma nota pode sair só com a data quando existir horário armazenado.
+// Se o registro histórico só tiver data (sem hora real), imprime apenas a data
+// — NUNCA inventa um horário. Um Date do Prisma sempre carrega hora; o caso
+// "só data" só acontece quando o objeto não existe ou é inválido.
+export function fmtDataHora(d?: string | Date | null): string {
+  if (!d) return '—';
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return '—';
+  const data = dt.toLocaleDateString('pt-BR');
+  const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  // Hora ausente/zerada no objeto (ex.: string "2026-09-05" → 00:00 local)
+  // não é tratada como horário real: nesse caso sai só a data.
+  const somenteData = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.trim());
+  return somenteData ? data : `${data} - ${hora}`;
 }
 
 function headerHtml(titulo: string): string {
@@ -198,11 +211,13 @@ export function imprimirNotaServico(os: OsParaImprimir): void {
 
   // Data do Serviço: usa dataServico persistida. Notas antigas sem dataServico usam emitidaEm como fallback.
   const dataServicoRaw = os.notaFiscal?.dataServico
-    ? new Date(os.notaFiscal.dataServico)
+    ? os.notaFiscal.dataServico
     : os.notaFiscal?.emitidaEm
-      ? new Date(os.notaFiscal.emitidaEm)
+      ? os.notaFiscal.emitidaEm
       : new Date();
-  const dataServicoStr = dataServicoRaw.toLocaleDateString('pt-BR');
+  // AJUSTE 2: data + horário do serviço no formato único dd/MM/yyyy - HH:mm.
+  // Fonte: NotaFiscal.dataServico (preservado na reimpressão); fallback emitidaEm.
+  const dataServicoStr = fmtDataHora(dataServicoRaw);
   const impressoEm = new Date().toLocaleString('pt-BR');
 
   const servicosReg = os.servicos && os.servicos.length > 0 ? os.servicos : null;
@@ -366,9 +381,8 @@ export function imprimirNotaVenda(venda: VendaParaImprimir): void {
   const w = abrirJanela('Nota de Venda');
   if (!w) return;
 
-  const data = new Date(venda.createdAt);
-  const dataStr = data.toLocaleDateString('pt-BR');
-  const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  // AJUSTE 2: data + horário no formato único dd/MM/yyyy - HH:mm. Fonte: Venda.createdAt.
+  const dataHoraStr = fmtDataHora(venda.createdAt);
   const impressoEm = new Date().toLocaleString('pt-BR');
 
   const linhasItens = venda.itens.map((i) =>
@@ -387,7 +401,7 @@ export function imprimirNotaVenda(venda: VendaParaImprimir): void {
     <div class="info">
       ${venda.notaNumero ? `<div><span>Nota:</span> ${esc(venda.notaNumero)}</div>` : ''}
       <div><span>Venda:</span> #${venda.numero}</div>
-      <div><span>Data:</span> ${dataStr} ${horaStr}</div>
+      <div><span>Data:</span> ${dataHoraStr}</div>
       ${venda.clienteNome ? `<div><span>Cliente:</span> ${esc(venda.clienteNome)}</div>` : ''}
       ${venda.clienteTelefone ? `<div><span>Telefone:</span> ${esc(venda.clienteTelefone)}</div>` : ''}
       ${venda.clienteCpf ? `<div><span>CPF/CNPJ:</span> ${esc(venda.clienteCpf)}</div>` : ''}
@@ -427,11 +441,19 @@ export interface NfManualParaImprimir {
   /** true (padrão) dispara window.print() automaticamente; false abre o mesmo
    *  documento com um botão "Imprimir / Salvar PDF" para o usuário controlar. */
   autoPrint?: boolean;
+  /** AJUSTE 2 — data/hora de emissão do documento. A NF Manual é gerada na hora
+   *  e não é persistida, então o caller informa o instante da geração (o mesmo
+   *  usado em "Imprimir" e em "Gerar PDF"). Sem valor → agora. */
+  dataEmissao?: string | Date;
 }
 
 export function imprimirNfManual(opts: NfManualParaImprimir): void {
   const w = abrirJanela('Nota Fiscal Manual');
   if (!w) return;
+  // AJUSTE 2: data + horário do documento no formato único dd/MM/yyyy - HH:mm.
+  // A NF Manual não é persistida — o horário é o do instante de emissão,
+  // informado pelo caller (o mesmo em Imprimir e em Gerar PDF).
+  const dataEmissaoStr = fmtDataHora(opts.dataEmissao ?? new Date());
   const impressoEm = new Date().toLocaleString('pt-BR');
   const autoPrint = opts.autoPrint !== false;
 
@@ -447,6 +469,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
     ${headerHtml('Nota Fiscal Manual')}
     <div class="info">
       <div><span>NF:</span> ${esc(String(opts.numero))}</div>
+      <div><span>Data:</span> ${dataEmissaoStr}</div>
       ${opts.formaPagamento ? `<div><span>Pagamento:</span> ${esc(opts.formaPagamento)}</div>` : ''}
       <div style="width:100%;margin-top:4px;font-size:10px;color:#999"><span>Impresso em:</span> ${impressoEm}</div>
     </div>

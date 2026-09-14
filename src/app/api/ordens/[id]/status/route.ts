@@ -75,17 +75,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (kmAtual !== undefined) data.kmAtual = kmAtual;
     if (tempoEstimado !== undefined) data.tempoEstimado = tempoEstimado;
 
-    if (Object.keys(data).length === 0 && !valorMaoDeObra && garantiaDias === undefined && !dataAgendamento && !previsaoEntrega && !kmAtual && tempoEstimado === undefined) {
+    // `valorMaoDeObra === undefined` (e não truthiness): salvar R$ 0,00 é uma
+    // alteração válida e não pode cair em "Nada para atualizar".
+    if (Object.keys(data).length === 0 && valorMaoDeObra === undefined && garantiaDias === undefined && !dataAgendamento && !previsaoEntrega && !kmAtual && tempoEstimado === undefined) {
       return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
     }
 
     // Transação atômica: ler itens + atualizar OS + criar historico
     const os = await prisma.$transaction(async (tx) => {
       if (valorMaoDeObra !== undefined) {
-        const itens = await tx.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
+        // Coerce explícito para número decimal (aceita string "150,00" → 150 e
+        // number). Valor inválido é tratado como 0. Mantém o schema Decimal.
+        const maoDeObraNum = Number(String(valorMaoDeObra).replace(',', '.'));
+        const maoDeObraValido = Number.isFinite(maoDeObraNum) ? Math.max(0, maoDeObraNum) : 0;
+        const itens = await tx.itemOS.findMany({ where: { ordemServicoId: id } });
         const valorPecas = itens.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
-        data.valorMaoDeObra = valorMaoDeObra;
-        data.valorTotal = valorPecas + Number(valorMaoDeObra);
+        data.valorMaoDeObra = maoDeObraValido;
+        // FONTE ÚNICA DE VERDADE: total = peças + mão de obra (não soma desconto,
+        // que é um campo separado exibido apenas na impressão).
+        data.valorTotal = Math.round((valorPecas + maoDeObraValido) * 100) / 100;
       }
       if (Object.keys(data).length === 0) throw new Error('Nada para atualizar');
 
@@ -94,7 +102,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         include: { mecanico: { select: { name: true } }, balcao: { select: { name: true } }, itens: { include: { peca: true } } },
       });
 
-      // Criar HistoricoOS para transições de status
+      // Criar HistoricoOS para transições de status (só quando houver mudança
+      // real de status/pagamento — uma atualização só de mão de obra não pode
+      // gravar "Status alterado para undefined").
       const tipoHist: Record<string, string> = {
         PAGO: 'PAGAMENTO',
         ENTREGUE: 'ENTREGA',
@@ -104,17 +114,32 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       };
       const tipoH = tipoHist[statusPagamento || status || ''] || 'MUDANCA_STATUS';
 
-      await tx.historicoOS.create({
-        data: {
-          ordemServicoId: id,
-          tipo: tipoH,
-          descricao: statusPagamento
-            ? `Status de pagamento alterado para ${statusPagamento}${statusPagamento === 'PAGO' ? ` — R$ ${Number(valorPago || 0).toFixed(2)}` : ''}`
-            : `Status alterado para ${status}${mecanicoId ? ' (mecanico alterado)' : ''}`,
-          usuario: session.name,
-          usuarioId: session.id,
-        },
-      });
+      if (statusPagamento || status) {
+        await tx.historicoOS.create({
+          data: {
+            ordemServicoId: id,
+            tipo: tipoH,
+            descricao: statusPagamento
+              ? `Status de pagamento alterado para ${statusPagamento}${statusPagamento === 'PAGO' ? ` — R$ ${Number(valorPago || 0).toFixed(2)}` : ''}`
+              : `Status alterado para ${status}${mecanicoId ? ' (mecanico alterado)' : ''}`,
+            usuario: session.name,
+            usuarioId: session.id,
+          },
+        });
+      }
+
+      // Historico dedicado para a alteração da mão de obra (fonte do total).
+      if (valorMaoDeObra !== undefined) {
+        await tx.historicoOS.create({
+          data: {
+            ordemServicoId: id,
+            tipo: 'MUDANCA_STATUS',
+            descricao: `Mão de obra atualizada para R$ ${Number(data.valorMaoDeObra ?? 0).toFixed(2)}`,
+            usuario: session.name,
+            usuarioId: session.id,
+          },
+        });
+      }
 
       // FASE 15-F: Historico para alteracoes de agendamento e garantia
       if (garantiaDias !== undefined) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { imprimirNotaVenda, normalizarVendaParaImpressao, headerEmpresaCompacto } from '@/lib/imprimirNotaServico';
+import { imprimirNotaVenda, normalizarVendaParaImpressao, headerEmpresaCompacto, fmtDataHora } from '@/lib/imprimirNotaServico';
 
 interface ItemComprovante {
   nome: string;
@@ -72,9 +72,9 @@ function normalizarItens(itens: any[]): ItemComprovante[] {
 
 export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaProps) {
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const data = new Date(venda.createdAt);
-  const dataStr = data.toLocaleDateString('pt-BR');
-  const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  // AJUSTE 2 — data + hora no formato único do sistema: dd/MM/yyyy - HH:mm.
+  // Fonte: Venda.createdAt (horário ORIGINAL da venda, preservado na reimpressão).
+  const dataHoraStr = fmtDataHora(venda.createdAt);
   const itens = normalizarItens(venda.itens);
 
   function gerarTermicoHTML() {
@@ -114,7 +114,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       @media print{body{width:72mm;padding:3mm}@page{margin:0}}
     </style></head><body>
       ${headerEmpresaCompacto(`Venda #${venda.numero}`)}
-      <div class="dt">${dataStr} — ${horaStr}</div>
+      <div class="dt">${dataHoraStr}</div>
       <hr class="sep">
       ${venda.clienteNome ? `<div class="cliente"><span>Cliente:</span> ${esc(venda.clienteNome)}${venda.clienteTelefone ? '<br><span>Tel:</span> ' + esc(venda.clienteTelefone) : ''}${venda.clienteCpf ? '<br><span>CPF:</span> ' + esc(venda.clienteCpf) : ''}</div><hr class="sep-dot">` : ''}
       <div>ITENS</div>
@@ -126,7 +126,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div>PAGAMENTO</div>
       ${linhasPg}
       <hr class="sep">
-      <div class="footer">Marquinho Moto Peças — ${dataStr}<br>Obrigado pela preferência!</div>
+      <div class="footer">Marquinho Moto Peças — ${dataHoraStr}<br>Obrigado pela preferência!</div>
       <script>setTimeout(function(){window.print();},300);</script>
     </body></html>`;
   }
@@ -147,7 +147,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
 
   function enviarWhatsApp() {
     const linhas = itens.map(i => `• ${i.nome} (${i.codigo}) — ${i.quantidade}x ${fm(i.precoUnitario)} = ${fm(i.subtotal)}`).join('\n');
-    const texto = `🧾 *MARQUINHO MOTO PEÇAS*\n*Venda #${venda.numero}*\n${dataStr} ${horaStr}\n\n${venda.clienteNome ? `*Cliente:* ${venda.clienteNome}\n` : ''}${venda.clienteTelefone ? `*Tel:* ${venda.clienteTelefone}\n` : ''}\n*Itens:*\n${linhas}\n\n${venda.descontoTotal > 0 ? `*Descontos:* −${fm(Number(venda.descontoTotal))}\n` : ''}*TOTAL: ${fm(Number(venda.total))}*\n\nObrigado pela preferencia! 🏍️`;
+    const texto = `🧾 *MARQUINHO MOTO PEÇAS*\n*Venda #${venda.numero}*\n${dataHoraStr}\n\n${venda.clienteNome ? `*Cliente:* ${venda.clienteNome}\n` : ''}${venda.clienteTelefone ? `*Tel:* ${venda.clienteTelefone}\n` : ''}\n*Itens:*\n${linhas}\n\n${venda.descontoTotal > 0 ? `*Descontos:* −${fm(Number(venda.descontoTotal))}\n` : ''}*TOTAL: ${fm(Number(venda.total))}*\n\nObrigado pela preferencia! 🏍️`;
     const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   }
@@ -163,7 +163,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
             </div>
             <div>
               <h2 className="text-base font-bold text-emerald-800">Venda Finalizada!</h2>
-              <p className="text-xs text-slate-400">Venda #{venda.numero} · {dataStr} {horaStr}</p>
+              <p className="text-xs text-slate-400">Venda #{venda.numero} · {dataHoraStr}</p>
             </div>
           </div>
           <button onClick={onFechar} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400">

@@ -19,6 +19,17 @@ export default function NFManualPage() {
   // nunca maior que o subtotal. Só vale para o documento impresso.
   const [descontoStr, setDescontoStr] = useState('');
 
+  // AJUSTE 2 — FORMA B: produto manual (não cadastrado). Não cria Peca, não
+  // altera estoque/SKU/código de barras/vitrine. Entra só neste documento.
+  const [manualAberto, setManualAberto] = useState(false);
+  const [manualNome, setManualNome] = useState('');
+  const [manualQtd, setManualQtd] = useState('1');
+  const [manualValor, setManualValor] = useState('');
+
+  // AJUSTE 2 — VALOR TOTAL MANUAL: se preenchido, vira o TOTAL FINAL (ignora o
+  // cálculo subtotal−desconto). Vazio → usa o total calculado.
+  const [totalManualStr, setTotalManualStr] = useState('');
+
   // Busca real de produtos (BLOCO 1): consulta /api/pecas/pesquisa e mostra
   // sugestões com SKU, código de barras, estoque disponível e preço. Não cria
   // produtos novos — cada item da NF precisa ser um produto existente.
@@ -74,14 +85,39 @@ export default function NFManualPage() {
   function atualizarQtd(id: string, qtd: number) { setItens(itens.map(i => i.id === id ? { ...i, quantidade: Math.max(1, qtd) } : i)); }
   function atualizarValor(id: string, v: string) { setItens(itens.map(i => i.id === id ? { ...i, valorUnitario: parseMoeda(v) } : i)); }
 
+  // FORMA B — adiciona um item manual que existe SÓ neste documento.
+  function adicionarProdutoManual() {
+    const nome = manualNome.trim();
+    const qtd = Math.max(1, parseInt(manualQtd) || 1);
+    const valor = parseMoeda(manualValor);
+    if (!nome) { setMsg('Informe o nome/descrição do produto manual.'); return; }
+    if (valor <= 0) { setMsg('Informe o valor unitário do produto manual.'); return; }
+    setItens(prev => [...prev, {
+      id: `manual-${Date.now()}`,
+      pecaId: undefined,
+      nome,
+      codigo: '',
+      marca: null,
+      quantidade: qtd,
+      valorUnitario: valor,
+    }]);
+    setManualNome(''); setManualQtd('1'); setManualValor(''); setManualAberto(false); setMsg('');
+  }
+
   const total = itens.reduce((s, i) => s + (i.valorUnitario || 0) * i.quantidade, 0);
   // BLOCO 7 — desconto em R$: nunca negativo, nunca maior que o subtotal.
   const descontoValor = Math.min(Math.max(parseMoeda(descontoStr), 0), Math.max(total, 0));
-  const totalFinal = Math.max(total - descontoValor, 0);
+  const totalCalculado = Math.max(total - descontoValor, 0);
+  // AJUSTE 2 — VALOR TOTAL MANUAL: preenchido → total final = valor manual;
+  // vazio → total calculado (subtotal − desconto).
+  const temTotalManual = totalManualStr.trim() !== '';
+  const totalManualValor = temTotalManual ? parseMoeda(totalManualStr) : null;
+  const totalFinal = totalManualValor != null ? totalManualValor : totalCalculado;
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   function gerarDocumento(autoPrint: boolean) {
     if (itens.length === 0) { setMsg('Adicione pelo menos um produto.'); return; }
+    if (totalFinal <= 0) { setMsg('O total final precisa ser maior que zero.'); return; }
     // MESMO documento/layout para IMPRIMIR e GERAR PDF — muda apenas se o
     // window.print() dispara sozinho (imprimir) ou se o usuário usa o botão
     // no documento (salvar PDF). Cabeçalho oficial (DADOS_EMPRESA) via headerHtml.
@@ -99,8 +135,13 @@ export default function NFManualPage() {
         valorUnitario: i.valorUnitario,
       })),
       total: totalFinal,
+      // Impressão sempre lista SUBTOTAL / DESCONTO / TOTAL FINAL. O "valor
+      // total manual" substitui apenas a linha TOTAL — subtotal e desconto
+      // continuam impressos (desconto só quando > 0).
       desconto: descontoValor,
       subtotal: total,
+      // AJUSTE 2: data + horário do documento (mesmo instante para Imprimir e PDF).
+      dataEmissao: new Date(),
       autoPrint,
     });
   }
@@ -185,6 +226,36 @@ export default function NFManualPage() {
           )}
         </div>
 
+        {/* AJUSTE 2 — FORMA B: produto manual (não cadastrado). Não cria Peca,
+            não altera estoque/SKU/código de barras/vitrine. Só este documento. */}
+        <div className="border-t border-slate-100 pt-3">
+          {!manualAberto ? (
+            <button onClick={() => { setManualAberto(true); setMsg(''); }} className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+              Adicionar produto manual
+            </button>
+          ) : (
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 sm:col-span-5">
+                <label className="text-[10px] font-semibold text-slate-500 uppercase">Nome / descrição</label>
+                <input value={manualNome} onChange={e => setManualNome(e.target.value)} className="input-field mt-1 text-xs" placeholder="Ex.: Serviço de montagem"/>
+              </div>
+              <div className="col-span-3 sm:col-span-2">
+                <label className="text-[10px] font-semibold text-slate-500 uppercase">Qtd</label>
+                <input type="number" min="1" value={manualQtd} onChange={e => setManualQtd(e.target.value)} className="input-field mt-1 text-xs text-center"/>
+              </div>
+              <div className="col-span-4 sm:col-span-3">
+                <label className="text-[10px] font-semibold text-slate-500 uppercase">Valor unitário</label>
+                <input value={manualValor} onChange={e => setManualValor(mascaraMoeda(e.target.value, manualValor))} inputMode="numeric" placeholder="0,00" className="input-field mt-1 text-xs text-right"/>
+              </div>
+              <div className="col-span-5 sm:col-span-2 flex gap-1">
+                <button onClick={adicionarProdutoManual} className="btn-primary text-xs px-2 flex-1">Add</button>
+                <button onClick={() => { setManualAberto(false); setManualNome(''); setManualValor(''); setManualQtd('1'); }} className="btn-secondary text-xs px-2">X</button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {itens.length > 0 && (
           <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-xs">
@@ -235,7 +306,22 @@ export default function NFManualPage() {
             <p className="text-lg font-extrabold text-brand-700 mt-1">{fm(totalFinal)}</p>
           </div>
         </div>
-        {descontoValor > 0 && (
+        <div>
+          <label className="text-[10px] font-semibold text-slate-500 uppercase">Valor total manual (opcional)</label>
+          <input
+            value={totalManualStr}
+            onChange={e => setTotalManualStr(mascaraMoeda(e.target.value, totalManualStr))}
+            inputMode="numeric"
+            placeholder="Vazio = usa o cálculo"
+            className="input-field mt-1 text-sm font-bold"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">
+            {temTotalManual
+              ? `Total final definido manualmente: ${fm(totalManualValor || 0)}. Desconto e cálculo são ignorados.`
+              : 'Vazio → total final = subtotal − desconto.'}
+          </p>
+        </div>
+        {!temTotalManual && descontoValor > 0 && (
           <p className="text-[11px] text-slate-400">
             Desconto de {fm(descontoValor)} aplicado — total final {fm(totalFinal)}.
           </p>

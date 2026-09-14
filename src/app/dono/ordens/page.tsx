@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { imprimirNotaServico } from '@/lib/imprimirNotaServico';
+import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
 
 interface Peca { id: string; nome: string; codigo: string; precoVenda: number; quantidade: number; compatibilidade?: string; categoria: { nome: string }; }
 interface ItemOS { id: string; peca: Peca; quantidade: number; precoUnitario: number; adaptado?: boolean; }
@@ -170,6 +171,10 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
   const [nfDataServico, setNfDataServico] = useState('');
   const [msg, setMsg] = useState('');
   const [dados, setDados] = useState<OS>(os);
+  // Mão de obra em formato monetário pt-BR (máscara de maquininha) — nunca
+  // "11.00000". parseMoeda devolve o número para o backend.
+  const [maoDeObraStr, setMaoDeObraStr] = useState(fmtMoeda(Number(os.valorMaoDeObra) || 0));
+  const [salvandoMao, setSalvandoMao] = useState(false);
 
   const carregarPecas = async (todas: boolean) => {
     const p = new URLSearchParams(); if (dados.modeloMoto&&!todas) p.set('modelo',dados.modeloMoto); if (todas) p.set('todas','1');
@@ -188,6 +193,29 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
   const statusLabel: Record<string,string>={ABERTA:'Aberta',EM_ANDAMENTO:'Em andamento',AGUARDANDO_PECAS:'Aguard. pecas',PRONTA:'Pronta',CONCLUIDA:'Concluida',CANCELADA:'Cancelada'};
 
   async function atualizarStatus(){const mdo=(document.getElementById('maoDeObraStatus')as HTMLInputElement);const v=mdo?parseFloat(mdo.value)||0:undefined;const res=await fetch(`/api/ordens/${dados.id}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:novoStatus,mecanicoId:mecId||null,diagnostico:diagnostico||null,valorMaoDeObra:v})});if(res.ok){const u=await res.json();setDados(u);setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro.');}}
+
+  // Salva SOMENTE a mão de obra (fonte única do total). Não reenvia `status`,
+  // então não quebra para OS históricas com status legado (ex.: LAVAGEM). Após
+  // salvar, recarrega o detalhe completo para a reimpressão da Nota do Cliente
+  // trazer notaFiscal/servicos/inicio/fim atualizados.
+  async function salvarMaoDeObra() {
+    const v = parseMoeda(maoDeObraStr);
+    setSalvandoMao(true);
+    setMsg('');
+    try {
+      const res = await fetch(`/api/ordens/${dados.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valorMaoDeObra: v }),
+      }).catch(() => null);
+      if (!res) { setMsg('Erro ao salvar a mão de obra.'); return; }
+      const u = await res.json();
+      if (!res.ok) { setMsg(u?.error || 'Erro ao salvar a mão de obra.'); return; }
+      setMaoDeObraStr(fmtMoeda(Number(u.valorMaoDeObra) || 0));
+      await carregarDetalhe();
+    } catch { setMsg('Erro ao salvar a mão de obra.'); }
+    finally { setSalvandoMao(false); }
+  }
   async function addItem(){if(!pecaId)return;const res=await fetch(`/api/ordens/${dados.id}/itens`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pecaId,quantidade:Number(qtd)||1})});if(res.ok){const u=await res.json();setDados(u);setPecaId('');setQtd('1');setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao adicionar peca.');}}
   async function removeItem(itemId:string){const res=await fetch(`/api/ordens/${dados.id}/itens`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId})});if(res.ok){const u=await res.json();setDados(u);}}
   async function emitirNF(){if(!nfNumero){setMsg('Informe o numero da nota.');return;}const res=await fetch('/api/notas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordemServicoId:dados.id,numero:nfNumero,chaveAcesso:nfChave||null,dataServico:nfDataServico||null})});if(res.ok){const nf=await res.json();setDados({...dados,notaFiscal:{id:nf.id,numero:nf.numero,dataServico:nf.dataServico||nf.emitidaEm,emitidaEm:nf.emitidaEm}});setNfNumero('');setNfChave('');setNfDataServico('');setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao emitir NF.');}}
@@ -249,7 +277,7 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
             <div className="flex items-center justify-between mb-3 p-2.5 bg-slate-50 rounded-lg text-xs"><span className="text-slate-600">Mostrando <strong className="text-slate-800">{qtdCompativeis}</strong> pecas compativeis com <strong className="text-brand-600">{dados.modeloMoto}</strong></span><button onClick={toggleMostrarTodas} className={`text-xs font-medium px-3 py-1 rounded transition-colors ${mostrarTodas?'bg-amber-100 text-amber-700 hover:bg-amber-200':'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>{mostrarTodas?'Mostrar so compativeis':'Mostrar outras pecas / Adaptar'}</button></div>
             <div className="flex gap-2 mb-4"><select value={pecaId} onChange={e=>setPecaId(e.target.value)} className="input-field flex-1 text-xs"><option value="">Selecionar peca...</option>{pecasOrdenadas.map(p=>{const badge=getCompatBadge(p,dados.modeloMoto);return(<option key={p.id} value={p.id}>{p.codigo} - {p.nome} ({formatMoney(Number(p.precoVenda))}) [{badge.label}]</option>);})}</select><input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} className="input-field w-20 text-xs" min="1"/><button onClick={addItem} className="btn-primary text-xs px-3">+</button></div>
             {dados.itens.length===0?(<p className="text-xs text-slate-400 py-4">Nenhuma peca adicionada.</p>):(<table className="w-full text-xs"><thead><tr className="border-b border-slate-100"><th className="text-left py-2 font-medium text-slate-500">Peca</th><th className="text-center py-2 font-medium text-slate-500 w-[80px]">Compat.</th><th className="text-right py-2 font-medium text-slate-500">Qtd</th><th className="text-right py-2 font-medium text-slate-500">Unit.</th><th className="text-right py-2 font-medium text-slate-500">Total</th><th className="text-right py-2 font-medium text-slate-500"></th></tr></thead><tbody>{dados.itens.map(i=>{const badge=getCompatBadge(i.peca,dados.modeloMoto);const isAdaptado=i.adaptado||badge.label==='Adaptada';const bl=isAdaptado?'Adaptada':badge.label;const bc=isAdaptado?'bg-amber-50 text-amber-700 border-amber-200':badge.color;return(<tr key={i.id} className="border-b border-slate-50"><td className="py-1.5 text-slate-700">{i.peca.nome}</td><td className="py-1.5 text-center"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${bc}`}>{bl}</span></td><td className="py-1.5 text-right">{i.quantidade}</td><td className="py-1.5 text-right text-slate-500">{formatMoney(Number(i.precoUnitario))}</td><td className="py-1.5 text-right font-medium">{formatMoney(Number(i.precoUnitario)*i.quantidade)}</td><td className="py-1.5 text-right"><button onClick={()=>removeItem(i.id)} className="text-red-500 hover:text-red-700 text-[11px]">Remover</button></td></tr>);})}</tbody><tfoot><tr><td colSpan={3}></td><td className="py-1.5 text-right text-xs text-slate-500">Mao de obra</td><td className="py-1.5 text-right text-sm text-slate-700">{formatMoney(Number(dados.valorMaoDeObra))}</td><td></td></tr><tr className="font-semibold"><td colSpan={4} className="py-2 text-right text-xs text-slate-500 border-t border-slate-100">Total</td><td className="py-2 text-right text-sm text-slate-800 border-t border-slate-100">{formatMoney(Number(dados.valorTotal))}</td><td className="border-t border-slate-100"></td></tr></tfoot></table>)}
-            <div className="mt-4 flex items-center gap-2 p-3 bg-slate-50 rounded-lg"><span className="text-xs text-slate-500 font-medium">Mao de obra:</span><input type="number" step="0.01" defaultValue={Number(dados.valorMaoDeObra)} onBlur={async(e)=>{const v=parseFloat(e.target.value)||0;const res=await fetch(`/api/ordens/${dados.id}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:dados.status,valorMaoDeObra:v})});if(res.ok){const u=await res.json();setDados(u);}}} className="input-field w-32 text-xs" placeholder="0,00"/></div>
+            <div className="mt-4 flex items-center gap-2 p-3 bg-slate-50 rounded-lg"><span className="text-xs text-slate-500 font-medium">Mao de obra:</span><input value={maoDeObraStr} onChange={e=>setMaoDeObraStr(mascaraMoeda(e.target.value, maoDeObraStr))} inputMode="numeric" className="input-field w-32 text-xs text-right" placeholder="0,00"/><button onClick={salvarMaoDeObra} disabled={salvandoMao} className="btn-primary text-xs px-3 disabled:opacity-50">{salvandoMao?'Salvando...':'Salvar'}</button></div>
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { imprimirNotaServico, imprimirNotaVenda, normalizarVendaParaImpressao } from '@/lib/imprimirNotaServico';
+import { imprimirNotaServico, imprimirNotaVenda, normalizarVendaParaImpressao, fmtDataHora } from '@/lib/imprimirNotaServico';
 
 interface Nota {
   id: string;
@@ -72,11 +72,11 @@ export default function NotasBalcaoPage() {
     if (origem(n) === 'VENDA_PDV') return `Venda #${n.venda?.numero ?? ''}`;
     return `OS #${n.ordemServico?.numero ?? ''}`;
   }
+  // AJUSTE 2 — data + hora no formato único: dd/MM/yyyy - HH:mm.
+  // Fonte: Nota.dataServico (horário ORIGINAL da operação) → Nota.emitidaEm.
+  // A REIMPRESSÃO mostra o horário original, nunca o do clique.
   function dataExibicao(n: Nota): string {
-    const raw = n.dataServico || n.emitidaEm;
-    if (!raw) return '—';
-    const d = new Date(raw);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+    return fmtDataHora(n.dataServico || n.emitidaEm);
   }
 
   // Mesmo módulo compartilhado da Central de Notas (DONA) — DOCUMENTO B, sem terceira versão
