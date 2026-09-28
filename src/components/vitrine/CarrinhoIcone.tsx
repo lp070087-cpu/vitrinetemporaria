@@ -1,67 +1,72 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getClienteVitrine } from '@/lib/vitrine-session';
-
-const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 interface CartItem { peca: any; quantidade: number; }
 
-export default function CarrinhoVitrine() {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [cliente, setCliente] = useState<any>(null);
+/** Evento interno da vitrine para avisar o header que o carrinho mudou. */
+export const CARRINHO_EVENTO = 'marquinho-cart-updated';
+
+export function lerCarrinho(): CartItem[] {
+  try {
+    const s = sessionStorage.getItem('marquinho-cart');
+    return s ? JSON.parse(s) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Contagem reativa de itens do carrinho, para o selo do cabeçalho.
+ * Ouve o evento disparado por `adicionar()` — assim o número sobe na hora,
+ * sem precisar recarregar a página.
+ */
+export function useCarrinhoContagem(): number {
+  const [qtd, setQtd] = useState(0);
 
   useEffect(() => {
-    const s = sessionStorage.getItem('marquinho-cart');
-    if (s) setCart(JSON.parse(s));
-    const c = getClienteVitrine();
-    if (c) setCliente(c);
+    const atualizar = () => setQtd(lerCarrinho().reduce((s, i) => s + i.quantidade, 0));
+    atualizar();
+    window.addEventListener(CARRINHO_EVENTO, atualizar);
+    return () => window.removeEventListener(CARRINHO_EVENTO, atualizar);
   }, []);
 
-  function atualizarQtd(i: number, q: number) {
-    const n = [...cart];
-    const limite = Number(n[i]?.peca?.quantidadeLoja ?? 0);
-    if (q <= 0) n.splice(i, 1);
-    else if (limite > 0 && q > limite) return; // respeita o estoque da LOJA
-    else n[i] = { ...n[i], quantidade: q };
-    setCart(n);
-    sessionStorage.setItem('marquinho-cart', JSON.stringify(n));
-  }
+  return qtd;
+}
 
-  function remover(i: number) { atualizarQtd(i, 0); }
-
-  // Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
-  const precoItem = (peca: any) => {
-    const pv = peca.precoVitrine != null ? Number(peca.precoVitrine) : NaN;
-    if (Number.isFinite(pv) && pv > 0) return pv;
-    if (peca.oferta && peca.precoOferta && Number(peca.precoOferta) < Number(peca.precoVenda)) return Number(peca.precoOferta);
-    return Number(peca.precoVenda) || 0;
-  };
-  const total = cart.reduce((s, i) => s + precoItem(i.peca) * i.quantidade, 0);
-  const qtdItens = cart.reduce((s, i) => s + i.quantidade, 0);
+/**
+ * Ícone de carrinho do cabeçalho, com selo de quantidade.
+ * Selo só aparece quando há itens — nunca mostra "0".
+ */
+export function CarrinhoIcone({ className = '' }: { className?: string }) {
+  const qtd = useCarrinhoContagem();
 
   return (
-    <div className="relative group">
-      <a href="/vitrine/carrinho" className="flex flex-col items-center justify-center px-3 py-1.5 rounded-md hover:bg-white/5 transition-colors relative">
+    <a href="/vitrine/carrinho" className={`mv-action ${className}`} aria-label="Carrinho">
+      <span className="relative">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
         </svg>
-        <span className="text-[10px] text-slate-400 mt-0.5">Carrinho</span>
-        {qtdItens > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-extrabold flex items-center justify-center">
-            {qtdItens > 9 ? '9+' : qtdItens}
+        {qtd > 0 && (
+          <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-[#e8991a] text-[#3a2606] text-[10px] font-extrabold flex items-center justify-center ring-2 ring-[#0b1220]">
+            {qtd > 9 ? '9+' : qtd}
           </span>
         )}
-      </a>
-    </div>
+      </span>
+      <span className="mv-action-label">Carrinho</span>
+    </a>
   );
 }
 
 // Hook global para adicionar ao carrinho
 export function useCarrinhoVitrine() {
   function adicionar(peca: any) {
-    const s = sessionStorage.getItem('marquinho-cart');
-    let cart: CartItem[] = s ? JSON.parse(s) : [];
+    let cart: CartItem[] = [];
+    try {
+      cart = lerCarrinho();
+    } catch {
+      cart = [];
+    }
     const idx = cart.findIndex((i: CartItem) => i.peca.id === peca.id);
     // Respeita o estoque da LOJA (quantidadeLoja) — nunca deixar o carrinho
     // ultrapassar o que existe na loja (o servidor também valida no fechamento).
@@ -79,6 +84,8 @@ export function useCarrinhoVitrine() {
       quantidade: 1,
     });
     sessionStorage.setItem('marquinho-cart', JSON.stringify(cart));
+    // Avisa o cabeçalho para atualizar o selo na hora.
+    window.dispatchEvent(new Event(CARRINHO_EVENTO));
   }
   return { adicionar };
 }

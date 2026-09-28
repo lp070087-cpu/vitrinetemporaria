@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 
-const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
 interface AvaliacaoData {
   id: string; nota: number; titulo?: string; comentario?: string; fotos?: string;
   verificada: boolean; createdAt: string; cliente: { nome: string };
@@ -12,9 +10,9 @@ interface AvaliacaoData {
 // Renderiza N estrelas cheias (âmbar) + (5-N) estrelas cinza vazias.
 function Estrelas({ nota, size = 'text-sm' }: { nota: number; size?: string }) {
   return (
-    <span className={`${size} inline-flex items-center gap-0.5`}>
+    <span className={`${size} inline-flex items-center gap-0.5`} aria-label={`${nota} de 5 estrelas`}>
       {[1, 2, 3, 4, 5].map(n => (
-        <span key={n} className={n <= nota ? 'text-amber-400' : 'text-slate-300'}>★</span>
+        <span key={n} aria-hidden="true" className={n <= nota ? 'text-[var(--mv-gold)]' : 'text-[var(--mv-line-strong)]'}>★</span>
       ))}
     </span>
   );
@@ -42,27 +40,27 @@ export default function AvaliacoesVitrine({ pecaId }: { pecaId: string }) {
     return () => { ativo = false; };
   }, [pecaId]);
 
-  if (loading) return <div className="py-4"><div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" /></div>;
+  if (loading) return <div className="py-6 flex justify-center"><span className="mv-spin" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Resumo */}
-      <div className="flex items-center gap-6 flex-wrap">
-        <div className="text-center">
-          <p className="text-4xl font-extrabold text-slate-800">{total > 0 ? media.toFixed(1) : '—'}</p>
-          <Estrelas nota={total > 0 ? Math.round(media) : 0} size="text-sm" />
-          <p className="text-[10px] text-slate-400 mt-0.5">{total > 0 ? `${total} avaliações` : 'Sem avaliações'}</p>
+      <div className="mv-panel !p-4 flex items-center gap-6 flex-wrap">
+        <div className="text-center flex-none">
+          <p className="text-3xl font-extrabold text-[var(--mv-text)] tabular-nums">{total > 0 ? media.toFixed(1) : '—'}</p>
+          <Estrelas nota={total > 0 ? Math.round(media) : 0} size="text-xs" />
+          <p className="text-[10px] text-[var(--mv-text-3)] mt-1">{total > 0 ? `${total} avaliações` : 'Sem avaliações'}</p>
         </div>
-        <div className="flex-1 space-y-1 min-w-[140px] sm:min-w-[180px]">
+        <div className="flex-1 flex flex-col gap-1.5 min-w-[140px] sm:min-w-[200px]">
           {[5,4,3,2,1].map(n => {
             const pct = total > 0 ? (dist[n] / total) * 100 : 0;
             return (
               <div key={n} className="flex items-center gap-2 text-xs">
-                <span className="w-6 text-right text-slate-500">{n}★</span>
-                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                <span className="w-6 text-right text-[var(--mv-text-3)] tabular-nums">{n}★</span>
+                <div className="flex-1 h-1.5 bg-[var(--mv-surface-2)] rounded-full overflow-hidden">
+                  <div className="h-full bg-[var(--mv-gold)] rounded-full" style={{ width: `${pct}%` }} />
                 </div>
-                <span className="w-6 text-slate-400">{dist[n]}</span>
+                <span className="w-6 text-[var(--mv-text-3)] tabular-nums">{dist[n]}</span>
               </div>
             );
           })}
@@ -73,20 +71,20 @@ export default function AvaliacoesVitrine({ pecaId }: { pecaId: string }) {
       {avaliacoes.length === 0 ? (
         <div className="py-10 text-center">
           <Estrelas nota={0} size="text-3xl" />
-          <p className="text-xs text-slate-400 mt-3">Seja o primeiro a avaliar este produto.</p>
+          <p className="text-xs text-[var(--mv-text-3)] mt-3">Seja o primeiro a avaliar este produto.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="flex flex-col">
           {avaliacoes.map(a => (
-            <div key={a.id} className="border-b border-slate-100 pb-4 last:border-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-bold text-slate-700">{a.cliente.nome}</span>
+            <div key={a.id} className="border-b border-[var(--mv-line)] pb-4 mb-4 last:border-0 last:mb-0 last:pb-0">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className="text-sm font-bold text-[var(--mv-text)]">{a.cliente.nome}</span>
                 <Estrelas nota={a.nota} size="text-xs" />
-                {a.verificada && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded">Verificada</span>}
+                {a.verificada && <span className="mv-badge mv-badge-ok !text-[9px] !px-1.5 !py-0.5">Verificada</span>}
               </div>
-              {a.titulo && <p className="text-xs font-semibold text-slate-700 mb-1">{a.titulo}</p>}
-              {a.comentario && <p className="text-xs text-slate-500 leading-relaxed">{a.comentario}</p>}
-              <p className="text-[9px] text-slate-400 mt-2">{new Date(a.createdAt).toLocaleDateString('pt-BR')}</p>
+              {a.titulo && <p className="text-xs font-bold text-[var(--mv-text)] mb-1">{a.titulo}</p>}
+              {a.comentario && <p className="text-xs text-[var(--mv-text-2)] leading-relaxed">{a.comentario}</p>}
+              <p className="text-[10px] text-[var(--mv-text-3)] mt-2">{new Date(a.createdAt).toLocaleDateString('pt-BR')}</p>
             </div>
           ))}
         </div>

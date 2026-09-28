@@ -1,0 +1,1221 @@
+/* ============================================================================
+   MARQUINHO MOTO PEÇAS — DESIGN SYSTEM DA VITRINE PÚBLICA
+   ----------------------------------------------------------------------------
+   ETAPA 1 do redesign visual (2026-09-26).
+
+   REGRA DE ISOLAMENTO: TODO seletor deste arquivo começa com `.mv-` ou está
+   dentro de `.mv-scope`. Isso é deliberado — as áreas internas (DONA, BALCÃO,
+   ESTOQUE, oficina, financeiro, notas) compartilham o mesmo `globals.css` e o
+   mesmo `tailwind.config.ts`. Nada aqui pode vazar para elas.
+
+   Este arquivo é importado SOMENTE em `src/app/vitrine/layout.tsx`.
+
+   Direção de arte aprovada pela DONA:
+     • Paleta: azul da marca (ação) + dourado (acento premium).
+     • Composição: header escuro que encolhe ao rolar + corpo claro de loja.
+     • Tipografia: Geist/Inter via next/font.
+     • Mobile desenhado desde o início (não é media query improvisada no fim).
+   ============================================================================ */
+
+.mv-scope {
+  /* ---- Superfícies escuras (header, rodapé, banners) ---- */
+  --mv-ink: #0b1220;
+  --mv-ink-2: #111c2e;
+  --mv-ink-3: #1a2942;
+  --mv-ink-line: rgba(255, 255, 255, 0.09);
+
+  /* ---- Superfícies claras (corpo da loja) ---- */
+  --mv-bg: #f4f6fa;
+  --mv-surface: #ffffff;
+  --mv-surface-2: #f8fafc;
+  --mv-line: #e6eaf1;
+  --mv-line-strong: #d3dae6;
+
+  /* ---- Texto ---- */
+  --mv-text: #0f172a;
+  --mv-text-2: #475569;
+  --mv-text-3: #94a3b8;
+  --mv-text-on-dark: #ffffff;
+  --mv-text-on-dark-2: #a9b6ca;
+
+  /* ---- Marca (ação) ---- */
+  --mv-brand: #1a56a4;
+  --mv-brand-hover: #154583;
+  --mv-brand-soft: #eef4fd;
+  --mv-brand-line: #c9dcf6;
+
+  /* ---- Acento premium ---- */
+  --mv-gold: #e8991a;
+  --mv-gold-soft: #fef7ea;
+  --mv-gold-line: #f2dfb8;
+
+  /* ---- Sinais ---- */
+  --mv-ok: #0f9d58;
+  --mv-ok-soft: #e9f7ef;
+  --mv-alert: #d92d20;
+  --mv-alert-soft: #fdecea;
+  --mv-warn: #b45309;
+  --mv-warn-soft: #fef3c7;
+
+  /* ---- Raios ---- */
+  --mv-r-sm: 8px;
+  --mv-r-md: 12px;
+  --mv-r-lg: 16px;
+  --mv-r-xl: 22px;
+  --mv-r-pill: 999px;
+
+  /* ---- Sombras (sutis e em camadas) ---- */
+  --mv-sh-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --mv-sh-sm: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --mv-sh-md: 0 4px 14px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --mv-sh-lg: 0 14px 38px rgba(15, 23, 42, 0.11), 0 3px 9px rgba(15, 23, 42, 0.05);
+  --mv-sh-xl: 0 26px 60px rgba(15, 23, 42, 0.16);
+
+  /* ---- Ritmo ---- */
+  --mv-gap: 16px;
+  --mv-pad-x: 16px;
+  --mv-max: 1400px;
+
+  /* Altura da LINHA principal do cabeçalho no desktop (>768px), onde as ações
+     ficam na mesma faixa da busca. No celular a linha tem duas alturas (marca +
+     busca embaixo), então este token não descreve o cabeçalho inteiro — para
+     isso existe --mv-header-total logo abaixo. */
+  --mv-header-h: 60px;
+
+  /* Altura REAL do cabeçalho preso (sticky) — topbar recolhida + linha + catbar.
+     É este valor que o conteúdo sticky da página (galeria do produto, filtros do
+     catálogo, resumo do carrinho/checkout) precisa respeitar. Usar --mv-header-h
+     aqui escondia o conteúdo atrás do cabeçalho, porque as três faixas somam
+     ~105px, não 60/68px. Os três estados convergem para o mesmo número:
+       celular recolhido .... linha 60 + catbar 45 = 105
+       desktop recolhido .... linha 58 + catbar 45 = 103
+       desktop expandido .... linha 68 + catbar 45 = 113 */
+  --mv-header-total: 105px;
+
+  /* ---- Camadas ---- */
+  --mv-z-sticky: 30;   /* conteúdo preso da página (filtros, resumo, galeria) */
+  --mv-z-header: 60;   /* cabeçalho */
+  --mv-z-overlay: 100; /* modais e gavetas */
+
+  /* ---- Movimento ---- */
+  --mv-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --mv-t-fast: 130ms;
+  --mv-t: 220ms;
+  --mv-t-slow: 420ms;
+
+  /* A fonte vem do next/font (variável --mv-font definida no layout da vitrine).
+     A pilha de fallback garante que, mesmo se a webfont não carregar, a loja
+     continue legível — nenhuma tela depende de fonte remota para funcionar. */
+  font-family: var(--mv-font), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--mv-text);
+  background: var(--mv-bg);
+}
+
+/* Em telas maiores o respiro cresce — mas o mobile acima já está completo. */
+@media (min-width: 640px)  { .mv-scope { --mv-pad-x: 24px; --mv-gap: 20px; } }
+@media (min-width: 768px)  { .mv-scope { --mv-header-total: 103px; } }
+@media (min-width: 1024px) { .mv-scope { --mv-pad-x: 32px; --mv-gap: 24px; --mv-header-h: 68px; } }
+@media (min-width: 1536px){ .mv-scope { --mv-max: 1440px; } }
+
+/* ============================================================================
+   LAYOUT
+   ============================================================================ */
+
+.mv-container {
+  width: 100%;
+  max-width: var(--mv-max);
+  margin-inline: auto;
+  padding-inline: var(--mv-pad-x);
+}
+
+.mv-section { margin-block: 40px; }
+@media (min-width: 768px) { .mv-section { margin-block: 56px; } }
+
+/* Cabeçalho de seção: título + ação, com fio dourado de reforço. */
+.mv-sec-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.mv-sec-title {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--mv-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+@media (min-width: 768px) { .mv-sec-title { font-size: 1.4rem; } }
+
+/* Marcador dourado antes do título — assinatura visual das seções. */
+.mv-sec-title::before {
+  content: '';
+  width: 4px;
+  height: 1.05em;
+  border-radius: var(--mv-r-pill);
+  background: linear-gradient(180deg, var(--mv-gold), #c97a10);
+  flex: none;
+}
+
+.mv-sec-sub {
+  font-size: 0.8125rem;
+  color: var(--mv-text-3);
+  margin-top: 4px;
+}
+
+.mv-sec-link {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--mv-brand);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: color var(--mv-t-fast) var(--mv-ease), gap var(--mv-t-fast) var(--mv-ease);
+}
+.mv-sec-link:hover { color: var(--mv-brand-hover); gap: 8px; }
+
+/* ============================================================================
+   GRADE DE PRODUTOS — a espinha dorsal da loja (796 peças)
+   Mobile desenhado primeiro: 2 colunas já em 360px.
+   ============================================================================ */
+
+.mv-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 560px)  { .mv-grid { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .mv-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1400px) { .mv-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+/* Grade do CATÁLOGO. Difere da .mv-grid de propósito: aqui a coluna de conteúdo
+   perde ~236px para o painel de filtros no desktop. Seguir as larguras de VIEWPORT
+   daria 4 colunas em ~700px reais (≈165px por card, tamanho de carta de baralho).
+   Por isso as colunas abaixo respeitam o espaço que sobra, não a tela toda. */
+.mv-grid-cat {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 560px)  { .mv-grid-cat { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .mv-grid-cat { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Trilho de produtos — a forma usada nas vitrines da home e nos relacionados.
+   Ele CONTINUA trilho no desktop (era `.mv-rail`, que virava grade acima de
+   1024px; a classe saiu junto com a última seção que a usava).
+   A home empilha várias seções de produto. Se todas usassem `.mv-grid`, o
+   desktop mostraria a mesma grade de 4 colunas cinco vezes seguidas — o defeito
+   visual do "tudo igual, um atrás do outro". Esta variante mantém a forma de
+   carrossel em qualquer largura: 4 itens visíveis e uma espiada do 5º, para o
+   olho entender que a lista continua. Ela rola DENTRO de si mesma, então não
+   gera rolagem horizontal na página. */
+.mv-carrossel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 46%;
+  gap: 12px;
+  overflow-x: auto;
+  /* `overflow-y: hidden` é obrigatório aqui: com um eixo `auto` o outro computa
+     como `auto` também, e o card que "levanta" no hover abriria uma barra de
+     rolagem vertical dentro do trilho.
+     O respiro de 20px existe para a sombra do hover (4px de deslocamento + 14px
+     de desfoque) NÃO ser cortada pela borda; o margin negativo devolve o mesmo
+     espaço ao ritmo da página, então o trilho não fica "flutuando". */
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  padding-block: 20px;
+  margin-block: -16px;
+  /* Sangra até a borda da tela mesmo dentro do container: sem isso o trilho
+     começa e termina no padding e parece uma caixa, não um carrossel. */
+  margin-inline: calc(var(--mv-pad-x) * -1);
+  padding-inline: var(--mv-pad-x);
+  scrollbar-width: none;
+}
+.mv-carrossel::-webkit-scrollbar { display: none; }
+.mv-carrossel > * { scroll-snap-align: start; }
+@media (min-width: 560px)  { .mv-carrossel { grid-auto-columns: 31%; } }
+@media (min-width: 768px)  { .mv-carrossel { grid-auto-columns: 23.5%; } }
+/* 4,2 colunas (e não 4) para deixar a espiada do próximo item. */
+@media (min-width: 1024px) { .mv-carrossel { grid-auto-columns: calc((100% - 48px) / 4.2); } }
+
+/* ============================================================================
+   SUPERFÍCIES / CARDS
+   ============================================================================ */
+
+.mv-card {
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  border-radius: var(--mv-r-lg);
+  box-shadow: var(--mv-sh-xs);
+}
+
+.mv-panel {
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  border-radius: var(--mv-r-lg);
+  box-shadow: var(--mv-sh-sm);
+  padding: 20px;
+}
+@media (min-width: 768px) { .mv-panel { padding: 24px; } }
+
+/* ============================================================================
+   BOTÕES
+   ============================================================================ */
+
+.mv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  line-height: 1;
+  padding: 11px 18px;
+  border-radius: var(--mv-r-pill);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--mv-t-fast) var(--mv-ease),
+              color var(--mv-t-fast) var(--mv-ease),
+              border-color var(--mv-t-fast) var(--mv-ease),
+              transform var(--mv-t-fast) var(--mv-ease),
+              box-shadow var(--mv-t-fast) var(--mv-ease);
+}
+.mv-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.mv-btn:not(:disabled):active { transform: translateY(1px); }
+
+.mv-btn-primary {
+  background: var(--mv-brand);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(26, 86, 164, 0.24);
+}
+.mv-btn-primary:not(:disabled):hover { background: var(--mv-brand-hover); box-shadow: 0 8px 22px rgba(26, 86, 164, 0.3); }
+
+.mv-btn-ok {
+  background: var(--mv-ok);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(15, 157, 88, 0.24);
+}
+.mv-btn-ok:not(:disabled):hover { background: #0c7f47; }
+
+.mv-btn-ghost {
+  background: var(--mv-surface);
+  color: var(--mv-text-2);
+  border-color: var(--mv-line-strong);
+}
+.mv-btn-ghost:not(:disabled):hover { background: var(--mv-surface-2); color: var(--mv-text); border-color: var(--mv-text-3); }
+
+.mv-btn-quiet {
+  background: var(--mv-brand-soft);
+  color: var(--mv-brand);
+  border-color: var(--mv-brand-line);
+}
+.mv-btn-quiet:not(:disabled):hover { background: #e2edfc; }
+
+.mv-btn-block { width: 100%; }
+.mv-btn-lg { padding: 14px 24px; font-size: 0.875rem; }
+
+/* Estado "adicionado" — feedback após incluir no carrinho. */
+.mv-btn-added { background: var(--mv-ok) !important; border-color: var(--mv-ok) !important; color: #fff !important; }
+
+/* ============================================================================
+   SELOS / BADGES
+   ============================================================================ */
+
+.mv-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: var(--mv-r-pill);
+  white-space: nowrap;
+}
+.mv-badge-brand { background: var(--mv-brand); color: #fff; }
+.mv-badge-gold  { background: var(--mv-gold); color: #3a2606; }
+.mv-badge-alert { background: var(--mv-alert); color: #fff; }
+.mv-badge-ok    { background: var(--mv-ok-soft); color: #0a6b3d; }
+.mv-badge-soft  { background: var(--mv-surface-2); color: var(--mv-text-2); border: 1px solid var(--mv-line); }
+.mv-badge-ink   { background: rgba(11, 18, 32, 0.86); color: #fff; backdrop-filter: blur(6px); }
+
+/* ============================================================================
+   CAMPOS
+   ============================================================================ */
+
+.mv-input {
+  width: 100%;
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line-strong);
+  border-radius: var(--mv-r-md);
+  padding: 10px 13px;
+  font-size: 0.8125rem;
+  color: var(--mv-text);
+  outline: none;
+  transition: border-color var(--mv-t-fast) var(--mv-ease), box-shadow var(--mv-t-fast) var(--mv-ease);
+}
+.mv-input::placeholder { color: var(--mv-text-3); }
+.mv-input:focus { border-color: var(--mv-brand); box-shadow: 0 0 0 3px rgba(26, 86, 164, 0.13); }
+
+.mv-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mv-text-2);
+  margin-bottom: 6px;
+}
+
+/* ============================================================================
+   PREÇO
+   ============================================================================ */
+
+.mv-price {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--mv-text);
+  font-variant-numeric: tabular-nums;
+}
+.mv-price-lg { font-size: 1.75rem; }
+@media (min-width: 768px) { .mv-price-lg { font-size: 2.125rem; } }
+
+.mv-price-old {
+  font-size: 0.75rem;
+  color: var(--mv-text-3);
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   ESTADOS (vazio / carregando)
+   ============================================================================ */
+
+.mv-empty {
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  border-radius: var(--mv-r-lg);
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.mv-spin {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--mv-brand-line);
+  border-top-color: var(--mv-brand);
+  animation: mv-spin 0.7s linear infinite;
+  margin-inline: auto;
+}
+@keyframes mv-spin { to { transform: rotate(360deg); } }
+
+/* Esqueleto de carregamento — evita "salto" de layout. */
+.mv-skel {
+  background: linear-gradient(90deg, #eef1f6 25%, #e4e9f0 37%, #eef1f6 63%);
+  background-size: 400% 100%;
+  animation: mv-shimmer 1.3s ease-in-out infinite;
+  border-radius: var(--mv-r-md);
+}
+@keyframes mv-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+/* ============================================================================
+   ANIMAÇÕES DE ENTRADA
+   Reveal suave por seção, disparado quando o elemento entra na viewport.
+   Respeita `prefers-reduced-motion`.
+   ============================================================================ */
+
+.mv-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity var(--mv-t-slow) var(--mv-ease), transform var(--mv-t-slow) var(--mv-ease);
+}
+.mv-reveal.mv-in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mv-reveal { opacity: 1; transform: none; transition: none; }
+  .mv-scope *, .mv-scope *::before, .mv-scope *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================================
+   HEADER — escuro, fixo, encolhe ao rolar
+   ============================================================================ */
+
+.mv-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--mv-z-header);
+  background: var(--mv-ink);
+  color: var(--mv-text-on-dark);
+  border-bottom: 1px solid var(--mv-ink-line);
+  transition: box-shadow var(--mv-t) var(--mv-ease), background var(--mv-t) var(--mv-ease);
+}
+.mv-header.mv-scrolled {
+  background: rgba(11, 18, 32, 0.94);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 8px 28px rgba(2, 6, 16, 0.34);
+}
+
+/* Mobile: duas linhas — [logo ... ações] e a busca ocupando a largura toda
+   embaixo. Escrever o layout mobile primeiro é o que evita o campo de busca
+   espremido a 60px em telas de 360px. */
+.mv-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  /* Altura da faixa de marca + ações fixada em 48px: sem isso a linha media só
+     a altura do logo (40px) e qualquer variação de fonte/zoom mudava a posição
+     da busca abaixo. */
+  min-height: 48px;
+  padding-block: 6px;
+  transition: padding var(--mv-t) var(--mv-ease);
+}
+.mv-header-search { order: 3; width: 100%; }
+
+@media (min-width: 768px) {
+  .mv-header-row { flex-wrap: nowrap; padding-block: 0; height: var(--mv-header-h); gap: 12px; }
+  .mv-header-search { order: 0; width: auto; flex: 1 1 auto; min-width: 0; }
+}
+@media (min-width: 1024px) {
+  .mv-header.mv-scrolled .mv-header-row { height: 58px; }
+}
+
+/* Barra superior de utilidades — some quando encolhe. */
+.mv-topbar {
+  border-bottom: 1px solid var(--mv-ink-line);
+  font-size: 0.6875rem;
+  color: var(--mv-text-on-dark-2);
+  overflow: hidden;
+  max-height: 40px;
+  transition: max-height var(--mv-t) var(--mv-ease), opacity var(--mv-t-fast) var(--mv-ease);
+}
+.mv-header.mv-scrolled .mv-topbar { max-height: 0; opacity: 0; }
+
+.mv-topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+}
+
+/* Ações do header (conta / favoritos / carrinho) */
+.mv-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--mv-r-md);
+  color: var(--mv-text-on-dark-2);
+  transition: background var(--mv-t-fast) var(--mv-ease), color var(--mv-t-fast) var(--mv-ease);
+  position: relative;
+}
+.mv-action:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.mv-action-label { font-size: 0.6875rem; line-height: 1.1; }
+@media (max-width: 767px) { .mv-action-label { display: none; } }
+
+/* Faixa de categorias — pastilhas em trilho rolável. */
+.mv-catbar {
+  background: var(--mv-ink-2);
+  border-top: 1px solid var(--mv-ink-line);
+}
+/* O trilho rola na horizontal, mas `overflow-x: auto` sozinho cria um contexto
+   de formatação que faz a faixa ignorar a largura do cabeçalho e empurrar a
+   página. `overflow-y: hidden` + `min-width: 0` prendem o trilho ao container.
+   Altura em bloco (46px) = mesma medida do `height` anterior, agora com 2px de
+   respiro que absorvem a barra de rolagem de navegadores que não a escondem. */
+.mv-catbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 46px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mv-catbar-row::-webkit-scrollbar { display: none; }
+
+.mv-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: var(--mv-r-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mv-text-on-dark-2);
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: background var(--mv-t-fast) var(--mv-ease), color var(--mv-t-fast) var(--mv-ease), border-color var(--mv-t-fast) var(--mv-ease);
+}
+.mv-cat:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.mv-cat-hot { color: #ffd479; border-color: rgba(232, 153, 26, 0.4); }
+.mv-cat-hot:hover { background: rgba(232, 153, 26, 0.16); color: #ffd479; }
+
+/* ============================================================================
+   BUSCA
+   ============================================================================ */
+
+.mv-search { position: relative; width: 100%; }
+
+.mv-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--mv-r-pill);
+  padding: 0 6px 0 16px;
+  height: 42px;
+  transition: background var(--mv-t-fast) var(--mv-ease), border-color var(--mv-t-fast) var(--mv-ease), box-shadow var(--mv-t-fast) var(--mv-ease);
+}
+.mv-search-field:focus-within {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.07);
+}
+.mv-search-input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 0.875rem;
+}
+.mv-search-input::placeholder { color: var(--mv-text-on-dark-2); }
+
+.mv-search-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding-inline: 16px;
+  border-radius: var(--mv-r-pill);
+  background: var(--mv-brand);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  flex: none;
+  transition: background var(--mv-t-fast) var(--mv-ease);
+}
+.mv-search-submit:hover { background: var(--mv-brand-hover); }
+@media (max-width: 639px) { .mv-search-submit { padding-inline: 12px; } .mv-search-submit span { display: none; } }
+
+/* Painel de sugestões.
+   No celular o campo de busca ocupa a largura inteira do cabeçalho, então este
+   painel precisa ser preso à JANELA (`fixed`) em vez de ao campo: assim ele não
+   é cortado pelo `overflow` do trilho de categorias nem estoura a largura da
+   tela. No desktop volta a ser ancorado ao campo, como uma lista suspensa. */
+.mv-suggest {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  top: 104px;
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  border-radius: var(--mv-r-lg);
+  box-shadow: var(--mv-sh-xl);
+  overflow: hidden;
+  z-index: 80;
+  max-height: min(68vh, 460px);
+  overflow-y: auto;
+  color: var(--mv-text);
+}
+@media (min-width: 768px) {
+  .mv-suggest { position: absolute; left: 0; right: 0; top: calc(100% + 8px); max-height: min(70vh, 520px); }
+}
+.mv-suggest-group { padding: 10px 12px; border-bottom: 1px solid var(--mv-line); }
+.mv-suggest-group:last-child { border-bottom: none; }
+.mv-suggest-head {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mv-text-3);
+  margin-bottom: 8px;
+}
+.mv-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: var(--mv-r-sm);
+  text-align: left;
+  transition: background var(--mv-t-fast) var(--mv-ease);
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+.mv-suggest-item:hover { background: var(--mv-brand-soft); }
+
+.mv-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: var(--mv-r-pill);
+  background: var(--mv-surface-2);
+  border: 1px solid var(--mv-line);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--mv-text-2);
+  cursor: pointer;
+  transition: all var(--mv-t-fast) var(--mv-ease);
+}
+.mv-chip:hover { border-color: var(--mv-brand-line); color: var(--mv-brand); background: var(--mv-brand-soft); }
+
+/* ============================================================================
+   HERO / BANNER
+   ============================================================================ */
+
+/* O hero que contém BANNER é claro: a arte é a protagonista e o texto vive em um
+   painel ao lado dela. Antes o hero era escuro com o texto absoluto por cima da
+   imagem, o que cobria justamente o que a DONA cadastrou. */
+.mv-hero {
+  position: relative;
+  background: var(--mv-surface);
+  border-bottom: 1px solid var(--mv-line);
+}
+
+.mv-hero-inner { position: relative; }
+
+/* PALCO DO BANNER — arte e texto em colunas SEPARADAS. O texto nunca é
+   sobreposto à imagem; no celular ele fica acima dela, no desktop ao lado. */
+.mv-banner-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+/* A ARTE — proporção oficial 4:1 (desktop) / 2:1 (mobile) e `object-contain`:
+   a imagem aparece INTEIRA, nunca cortada nem deformada. */
+.mv-banner-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  background: var(--mv-ink-2);
+  overflow: hidden;
+  align-self: start;
+}
+@media (min-width: 768px) { .mv-banner-art { aspect-ratio: 4 / 1; } }
+.mv-banner-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+
+/* Enquanto o banner não chega, o esqueleto herda a MESMA proporção da arte —
+   assim a página não "pula" quando a imagem entra. */
+.mv-banner-skel { border-radius: 0; align-self: start; }
+
+/* Falha de carregamento da imagem: fundo institucional no lugar do arquivo
+   quebrado — nunca o ícone de imagem quebrada do navegador. */
+.mv-banner-erro {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, var(--mv-ink) 0%, var(--mv-ink-3) 55%, var(--mv-ink) 100%);
+}
+
+/* PAINEL DE TEXTO — superfície própria, separada da arte. */
+.mv-banner-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 22px var(--mv-pad-x);
+  background: var(--mv-ink);
+  color: #fff;
+}
+.mv-banner-copy-right { align-items: flex-end; text-align: right; }
+/* Variante clara: usada quando a DONA cadastrou texto ESCURO. O painel acompanha
+   a cor para o título nunca ficar ilegível. */
+.mv-banner-copy-light {
+  background: var(--mv-surface-2);
+  border-bottom: 1px solid var(--mv-line);
+}
+.mv-banner-copy-light .mv-eyebrow {
+  background: var(--mv-gold-soft);
+  border-color: var(--mv-gold-line);
+  color: var(--mv-warn);
+}
+
+@media (min-width: 1024px) {
+  /* Desktop: painel fixo de um lado, arte ocupando o resto. A largura do painel
+     em `px` mantém o texto legível sem encolher a arte em telas grandes. */
+  .mv-banner-stage { grid-template-columns: 352px minmax(0, 1fr); background: var(--mv-ink); }
+  .mv-banner-stage-right { grid-template-columns: minmax(0, 1fr) 352px; }
+  .mv-banner-stage-right .mv-banner-copy { order: 2; }
+  .mv-banner-copy { padding: 28px 32px; }
+  /* Painel claro: a moldura inteira acompanha (senão sobraria uma faixa escura
+     ao redor do painel branco). */
+  .mv-banner-stage-light { background: var(--mv-surface-2); }
+  .mv-banner-copy-light { border-bottom: 0; border-inline-end: 1px solid var(--mv-line); }
+  .mv-banner-stage-right .mv-banner-copy-light { border-inline-end: 0; border-inline-start: 1px solid var(--mv-line); }
+}
+
+/* Hero sem banner da DONA: composição própria com gradiente + atalhos. */
+.mv-hero-fallback {
+  position: relative;
+  padding-block: 48px 40px;
+  background:
+    radial-gradient(ellipse 70% 80% at 12% 0%, rgba(26, 86, 164, 0.4), transparent 60%),
+    radial-gradient(ellipse 60% 70% at 92% 100%, rgba(232, 153, 26, 0.18), transparent 62%),
+    var(--mv-ink);
+}
+@media (min-width: 768px) { .mv-hero-fallback { padding-block: 76px 62px; } }
+
+.mv-hero-title {
+  font-size: clamp(1.65rem, 6vw, 3.15rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+  color: #fff;
+}
+.mv-hero-text {
+  font-size: 0.875rem;
+  color: var(--mv-text-on-dark-2);
+  line-height: 1.6;
+  max-width: 46ch;
+}
+@media (min-width: 768px) { .mv-hero-text { font-size: 1rem; } }
+
+.mv-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border-radius: var(--mv-r-pill);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  color: #ffd479;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Atalhos rápidos sob o hero */
+.mv-quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (min-width: 640px)  { .mv-quick { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.mv-quick-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px;
+  border-radius: var(--mv-r-md);
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  box-shadow: var(--mv-sh-xs);
+  transition: transform var(--mv-t-fast) var(--mv-ease), box-shadow var(--mv-t) var(--mv-ease), border-color var(--mv-t-fast) var(--mv-ease);
+}
+.mv-quick-item:hover { transform: translateY(-2px); box-shadow: var(--mv-sh-md); border-color: var(--mv-brand-line); }
+@media (min-width: 1024px) { .mv-quick { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* FAIXA DE RITMO — agrupa uma ou duas seções de produto numa superfície levemente
+   diferente (branco sobre o fundo da loja). Serve para o olho não ler dez blocos
+   idênticos enfileirados: alterna "faixa branca" e "faixa do fundo". Nada de
+   dado comercial aqui — é só superfície.
+   A sangra horizontal é feita com metade da viewport, sem `100vw`, para não
+   criar rolagem lateral em telas com barra de rolagem. */
+.mv-band {
+  background: var(--mv-surface);
+  /* Fios de 1px em cima e embaixo marcam a faixa. Deliberadamente SEM canto
+     arredondado: a faixa sangra até a borda da tela, e um raio aqui apareceria
+     cortado pelo próprio limite do viewport.
+     A sangria usa metade do --mv-pad-x de cada lado (a mesma largura que o
+     container já reserva como padding), então NÃO aumenta a largura da página.
+     O padding horizontal devolve --mv-pad-x: o título da seção e o primeiro
+     card do trilho caem exatamente na mesma vertical. */
+  border-block: 1px solid var(--mv-line);
+  padding: 26px var(--mv-pad-x);
+  margin-inline: calc(var(--mv-pad-x) * -1);
+  margin-block: 40px;
+}
+.mv-band > .mv-section:first-child { margin-top: 0; }
+.mv-band > .mv-section:last-child { margin-bottom: 0; }
+/* Duas vitrines dentro da mesma faixa ficam mais próximas entre si do que do
+   resto da página — é o que as faz ler como um grupo, e não como duas seções. */
+.mv-band > .mv-section + .mv-section { margin-top: 34px; }
+@media (min-width: 768px) { .mv-band { margin-block: 56px; } }
+@media (min-width: 768px) {
+  .mv-band { padding-block: 30px; border-radius: 26px; }
+}
+
+/* ============================================================================
+   TARJAS PROMOCIONAIS (full-bleed)
+   ============================================================================ */
+
+.mv-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-radius: var(--mv-r-xl);
+  padding: 26px 24px;
+  color: #fff;
+  overflow: hidden;
+  position: relative;
+  flex-wrap: wrap;
+}
+@media (min-width: 768px) { .mv-strip { padding: 36px 40px; } }
+
+.mv-strip-ink { background: linear-gradient(120deg, var(--mv-ink) 0%, var(--mv-ink-3) 100%); }
+.mv-strip-brand { background: linear-gradient(120deg, var(--mv-brand-hover) 0%, var(--mv-brand) 62%, #2f74c9 100%); }
+.mv-strip-gold { background: linear-gradient(120deg, #a05c11 0%, var(--mv-gold) 100%); }
+
+/* ============================================================================
+   BENTO — vitrine de destaques
+   Quebra a monotonia de "grade de cards idênticos": o item principal ocupa
+   mais espaço e os demais se organizam ao redor dele.
+   ============================================================================ */
+
+.mv-bento {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  .mv-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  /* O 1º destaque vira o painel principal (2 colunas × 2 linhas). */
+  .mv-bento > :first-child { grid-column: span 2; grid-row: span 2; }
+}
+/* Mantido em 4 colunas no desktop: com o painel principal em 2×2, os 4 cards
+   restantes fecham exatamente as 8 células de 4×2 — sem buraco na última linha. */
+
+/* Card-feature: mesma informação do card normal, em escala maior. */
+.mv-feature { position: relative; }
+@media (min-width: 768px) {
+  /* Só o card principal cresce — os outros seguem a grade normal. */
+  .mv-bento > :first-child .mv-feature-img { aspect-ratio: 16 / 11; }
+  .mv-bento > :first-child .mv-feature-nome { font-size: 1.05rem; line-height: 1.25; }
+  .mv-bento > :first-child .mv-feature-preco { font-size: 1.5rem; }
+}
+
+/* ============================================================================
+   CATEGORIAS
+   ============================================================================ */
+
+.mv-cat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 12px;
+  text-align: center;
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  border-radius: var(--mv-r-lg);
+  transition: transform var(--mv-t-fast) var(--mv-ease), box-shadow var(--mv-t) var(--mv-ease), border-color var(--mv-t-fast) var(--mv-ease);
+}
+.mv-cat-card:hover { transform: translateY(-3px); box-shadow: var(--mv-sh-md); border-color: var(--mv-brand-line); }
+
+.mv-cat-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--mv-r-md);
+  background: var(--mv-brand-soft);
+  color: var(--mv-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.125rem;
+  flex: none;
+  overflow: hidden;
+  transition: background var(--mv-t-fast) var(--mv-ease);
+}
+.mv-cat-card:hover .mv-cat-icon { background: #dfeafb; }
+
+/* DIRETÓRIO DE CATEGORIAS (home).
+   O atalho sob o hero e a vitrine de categorias mostravam a MESMA fileira de
+   quadradinhos com ícone — a página repetia o próprio desenho. Aqui a categoria
+   vira uma linha de diretório: ícone pequeno, nome grande e a contagem alinhada
+   à direita, com separador entre as linhas. É leitura de lista, não de card, e
+   por isso não compete com os produtos. */
+.mv-cat-dir {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (min-width: 900px)  { .mv-cat-dir { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .mv-cat-dir { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.mv-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px 13px;
+  border-radius: var(--mv-r-md);
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  transition: border-color var(--mv-t-fast) var(--mv-ease), box-shadow var(--mv-t-fast) var(--mv-ease);
+}
+.mv-cat-row:hover { border-color: var(--mv-brand-line); box-shadow: var(--mv-sh-sm); }
+/* Reaproveita `.mv-cat-icon` (mesmo ícone do cadastro) com escala de lista. */
+.mv-cat-row .mv-cat-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 0.95rem; }
+
+/* ============================================================================
+   RODAPÉ
+   ============================================================================ */
+
+.mv-footer {
+  background: var(--mv-ink);
+  color: var(--mv-text-on-dark-2);
+  margin-top: 64px;
+}
+
+.mv-footer-title {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  margin-bottom: 14px;
+}
+
+.mv-footer-link {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--mv-text-on-dark-2);
+  padding-block: 5px;
+  transition: color var(--mv-t-fast) var(--mv-ease), padding-left var(--mv-t-fast) var(--mv-ease);
+}
+.mv-footer-link:hover { color: #fff; padding-left: 3px; }
+
+.mv-benefit {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--mv-r-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--mv-ink-line);
+}
+
+/* ============================================================================
+   MIGALHAS / TÍTULOS DE PÁGINA INTERNA
+   ============================================================================ */
+
+.mv-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--mv-text-3);
+}
+.mv-crumbs a { transition: color var(--mv-t-fast) var(--mv-ease); }
+.mv-crumbs a:hover { color: var(--mv-brand); }
+
+.mv-page-head {
+  background: var(--mv-ink);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.mv-page-head::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 55% 100% at 15% 0%, rgba(26, 86, 164, 0.35), transparent 65%);
+  pointer-events: none;
+}
+.mv-page-title {
+  font-size: clamp(1.4rem, 4.4vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+
+/* ============================================================================
+   FAIXA DE FILTROS DO CATÁLOGO
+   ============================================================================ */
+
+.mv-filter-deck {
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line);
+  border-radius: var(--mv-r-lg);
+  box-shadow: var(--mv-sh-xs);
+}
+
+.mv-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: var(--mv-r-pill);
+  background: var(--mv-surface);
+  border: 1px solid var(--mv-line-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--mv-text-2);
+  cursor: pointer;
+  transition: all var(--mv-t-fast) var(--mv-ease);
+  white-space: nowrap;
+}
+.mv-toggle:hover { border-color: var(--mv-brand-line); color: var(--mv-brand); }
+.mv-toggle.mv-on { background: var(--mv-brand); border-color: var(--mv-brand); color: #fff; }
+
+.mv-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 13px;
+  border-radius: var(--mv-r-pill);
+  background: var(--mv-surface-2);
+  border: 1px solid var(--mv-line);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mv-text-2);
+  cursor: pointer;
+  transition: all var(--mv-t-fast) var(--mv-ease);
+  white-space: nowrap;
+}
+.mv-pill:hover { background: #eef1f6; }
+.mv-pill.mv-on { background: var(--mv-brand); border-color: var(--mv-brand); color: #fff; }
+
+/* Gaveta de filtros no mobile */
+.mv-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 11, 22, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 90;
+}
+.mv-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 91;
+  background: var(--mv-surface);
+  border-radius: var(--mv-r-xl) var(--mv-r-xl) 0 0;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 -18px 50px rgba(6, 11, 22, 0.3);
+  animation: mv-drawer-in var(--mv-t) var(--mv-ease);
+}
+@keyframes mv-drawer-in { from { transform: translateY(100%); } to { transform: none; } }
+@media (min-width: 1024px) {
+  .mv-drawer-backdrop, .mv-drawer { display: none; }
+}
+
+/* ============================================================================
+   TABELAS / LISTAS INTERNAS
+   ============================================================================ */
+
+.mv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 8px;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--mv-line);
+}
+.mv-row:last-child { border-bottom: none; }
+
+.mv-kv { display: flex; justify-content: space-between; gap: 16px; padding-block: 7px; font-size: 0.8125rem; border-bottom: 1px solid var(--mv-line); }
+.mv-kv:last-child { border-bottom: none; }
+/* Aceita <dl>/<dt>/<dd> ou <div>/<span>/<span> — só a última linha é o valor. */
+.mv-kv dt, .mv-kv > span:first-child { color: var(--mv-text-3); }
+.mv-kv dd, .mv-kv > span:last-child { font-weight: 600; color: var(--mv-text); text-align: right; }
+.mv-kv > span:only-child { text-align: left; }
+
+/* Etapas do pedido (perfil) */
+.mv-steps { display: flex; align-items: center; gap: 0; }
+.mv-step-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--mv-line-strong); flex: none;
+  transition: background var(--mv-t) var(--mv-ease);
+}
+.mv-step-dot.mv-done { background: var(--mv-ok); }
+.mv-step-bar { flex: 1; height: 2px; background: var(--mv-line); margin-inline: 5px; border-radius: 2px; }
+.mv-step-bar.mv-done { background: #9ad9b7; }
+
+/* ============================================================================
+   CONTROLE DE QUANTIDADE (carrinho / produto)
+   ============================================================================ */
+
+.mv-qty {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--mv-line-strong);
+  border-radius: var(--mv-r-md);
+  overflow: hidden;
+  background: var(--mv-surface);
+}
+.mv-qty-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mv-text-2);
+  font-size: 1rem;
+  font-weight: 700;
+  transition: background var(--mv-t-fast) var(--mv-ease), color var(--mv-t-fast) var(--mv-ease);
+}
+.mv-qty-btn:hover:not(:disabled) { background: var(--mv-surface-2); color: var(--mv-text); }
+.mv-qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.mv-qty-val {
+  min-width: 38px;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--mv-text);
+  border-inline: 1px solid var(--mv-line);
+  padding-inline: 4px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================================
+   ACESSIBILIDADE
+   ============================================================================ */
+
+.mv-scope :focus-visible {
+  outline: 2px solid var(--mv-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.mv-header :focus-visible,
+.mv-footer :focus-visible {
+  outline-color: #ffd479;
+}
+
+.mv-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

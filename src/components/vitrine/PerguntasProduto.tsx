@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { getClienteVitrine } from '@/lib/vitrine-session';
 
+/**
+ * Perguntas e respostas do produto.
+ * Mecânica preservada: exige login para perguntar, a nova pergunta entra no topo
+ * da lista, a mensagem some sozinha após 3s e as respostas oficiais ficam
+ * indentadas sob a pergunta.
+ */
 export default function PerguntasProduto({ pecaId }: { pecaId: string }) {
   const [perguntas, setPerguntas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,41 +49,54 @@ export default function PerguntasProduto({ pecaId }: { pecaId: string }) {
   return (
     <div>
       {/* Form */}
-      <div className="mb-5">
-        <label className="text-xs font-bold text-slate-700 block mb-2">Tem alguma dúvida? Pergunte aqui:</label>
-        <textarea value={novaPergunta} onChange={e => setNovaPergunta(e.target.value)} className="input-field text-xs" rows={2} placeholder="Ex: Este produto serve na CG 160 2020?" />
-        <div className="flex items-center justify-between mt-2">
-          <button onClick={enviar} disabled={enviando || !novaPergunta.trim()} className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-            {enviando ? 'Enviando...' : 'Perguntar'}
+      <div className="mb-6">
+        <label className="mv-label" htmlFor="mv-pergunta">Tem alguma dúvida? Pergunte aqui:</label>
+        <textarea id="mv-pergunta" value={novaPergunta} onChange={e => setNovaPergunta(e.target.value)}
+          className="mv-input w-full text-xs resize-y" rows={2}
+          placeholder="Ex: Este produto serve na CG 160 2020?" />
+        <div className="flex items-center justify-between mt-2.5 gap-3">
+          <button onClick={enviar} disabled={enviando || !novaPergunta.trim()} className="mv-btn mv-btn-primary">
+            {enviando ? 'Enviando…' : 'Perguntar'}
           </button>
-          {msg && <span className="text-[11px] text-slate-500">{msg}</span>}
+          {msg && <span className="text-[11px] text-[var(--mv-text-2)] font-semibold">{msg}</span>}
         </div>
       </div>
 
       {/* Lista */}
       {loading ? (
-        <div className="text-center py-4"><div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto"/></div>
+        <div className="py-6 flex justify-center"><span className="mv-spin" /></div>
       ) : perguntas.length === 0 ? (
-        <p className="text-xs text-slate-400 text-center py-4">Nenhuma pergunta ainda. Seja o primeiro a perguntar!</p>
+        <div className="mv-empty">
+          <svg className="w-10 h-10 mx-auto text-[var(--mv-line-strong)] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-[var(--mv-text-3)]">Nenhuma pergunta ainda. Seja o primeiro a perguntar!</p>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {perguntas.map((p: any) => (
-            <div key={p.id} className="bg-slate-50 rounded-xl p-4">
-              <div className="flex items-start gap-2 mb-2">
-                <span className="text-base">❓</span>
-                <div className="flex-1">
-                  <p className="text-xs font-semibold text-slate-700">{p.texto}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{p.cliente.nome} · {new Date(p.createdAt).toLocaleDateString('pt-BR')}</p>
+            <div key={p.id} className="rounded-[var(--mv-r-lg)] border border-[var(--mv-line)] bg-[var(--mv-surface-2)] p-4">
+              <div className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-full bg-[var(--mv-brand-soft)] text-[var(--mv-brand)] flex items-center justify-center flex-none text-[11px] font-extrabold">?</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-[var(--mv-text)]">{p.texto}</p>
+                  <p className="text-[10px] text-[var(--mv-text-3)] mt-1">
+                    {p.cliente.nome} · {new Date(p.createdAt).toLocaleDateString('pt-BR')}
+                  </p>
                 </div>
               </div>
               {p.respostas.length > 0 && (
-                <div className="ml-6 pl-4 border-l-2 border-brand-200 space-y-2 mt-2">
+                <div className="ml-4 mt-3 pl-4 border-l-2 border-[var(--mv-brand-line)] flex flex-col gap-2.5">
                   {p.respostas.map((r: any) => (
-                    <div key={r.id} className="flex items-start gap-2">
-                      <span className="text-base">💬</span>
-                      <div>
-                        <p className="text-xs text-slate-600">{r.texto}</p>
-                        <p className="text-[9px] text-brand-500 mt-0.5 font-medium">Marquinho · {new Date(r.createdAt).toLocaleDateString('pt-BR')}</p>
+                    <div key={r.id} className="flex items-start gap-3">
+                      <span className="w-7 h-7 rounded-full bg-[var(--mv-ok-soft)] text-[var(--mv-ok)] flex items-center justify-center flex-none">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.6} d="M5 13l4 4L19 7" /></svg>
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs text-[var(--mv-text-2)] leading-relaxed">{r.texto}</p>
+                        <p className="text-[10px] text-[var(--mv-brand)] font-bold mt-1">
+                          Marquinho · {new Date(r.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
                       </div>
                     </div>
                   ))}

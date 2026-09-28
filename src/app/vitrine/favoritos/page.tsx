@@ -3,68 +3,74 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
-import LogoOficina from '@/components/LogoOficina';
 import { getClienteVitrine } from '@/lib/vitrine-session';
 
+/**
+ * Favoritos do cliente. Mesma mecânica: exige sessão (redireciona ao login
+ * guardando a intenção) e remove o item da lista assim que ele é desfavoritado.
+ */
 export default function FavoritosPage() {
   const router = useRouter();
   const [favoritos, setFavoritos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cliente, setCliente] = useState<any>(null);
 
   useEffect(() => {
     const d = getClienteVitrine();
     if (!d) { router.push('/vitrine/login?redirect=/vitrine/favoritos'); return; }
-    setCliente(d);
 
     fetch('/api/vitrine/favoritos', { headers: { Authorization: `Bearer ${d.token}` } })
       .then(r => r.json()).then(data => {
-        setFavoritos(data);
+        setFavoritos(Array.isArray(data) ? data : []);
         setLoading(false);
       }).catch(() => setLoading(false));
   }, [router]);
 
   async function toggleFavorito(pecaId: string) {
+    const d = getClienteVitrine();
     await fetch('/api/vitrine/favoritos', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cliente?.token}` },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${d?.token}` },
       body: JSON.stringify({ pecaId }),
     });
     setFavoritos(prev => prev.filter(f => f.pecaId !== pecaId));
   }
 
   return (
-    <div className="min-h-screen bg-[#F3F6FB]">
-      <header className="bg-[#0D1117] text-white">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/vitrine" className="flex items-center gap-2.5">
-            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
-            <span className="font-extrabold text-sm">Favoritos</span>
-          </a>
-        </div>
-      </header>
+    <div className="mv-container mv-section">
+      <nav className="mv-crumbs mb-3" aria-label="Você está aqui">
+        <a href="/vitrine">Início</a>
+        <span>/</span>
+        <span className="text-[var(--mv-text-2)]">Favoritos</span>
+      </nav>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-extrabold text-slate-800 mb-2">Meus Favoritos</h1>
-        <p className="text-sm text-slate-500 mb-6">{favoritos.length} produtos</p>
-
-        {loading ? (
-          <div className="text-center py-16"><div className="w-8 h-8 border-3 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto"/></div>
-        ) : favoritos.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-            </div>
-            <p className="text-sm text-slate-400">Nenhum favorito salvo ainda</p>
-            <a href="/vitrine/catalogo" className="text-brand-600 text-sm font-bold mt-2 inline-block">Explorar catálogo</a>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {favoritos.map((f: any) => (
-              <CardProdutoPremium key={f.id} p={f.peca} onFavorito={toggleFavorito} favorited={true} />
-            ))}
-          </div>
-        )}
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--mv-text)]">Meus favoritos</h1>
+        <p className="text-sm text-[var(--mv-text-2)] mt-1.5">
+          {loading ? 'Carregando…' : `${favoritos.length} ${favoritos.length === 1 ? 'produto salvo' : 'produtos salvos'}`}
+        </p>
       </div>
+
+      {loading ? (
+        <div className="mv-grid">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="mv-skel aspect-[3/4] rounded-[var(--mv-r-lg)]" />)}
+        </div>
+      ) : favoritos.length === 0 ? (
+        <div className="mv-empty !py-20">
+          <svg className="w-14 h-14 mx-auto text-[var(--mv-line-strong)] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+          <p className="text-base font-bold text-[var(--mv-text)]">Nenhum favorito salvo ainda</p>
+          <p className="text-xs text-[var(--mv-text-3)] mt-1 mb-6">
+            Toque no coração de um produto para guardá-lo aqui.
+          </p>
+          <a href="/vitrine/catalogo" className="mv-btn mv-btn-primary mv-btn-lg">Explorar catálogo</a>
+        </div>
+      ) : (
+        <div className="mv-grid">
+          {favoritos.map((f: any) => (
+            <CardProdutoPremium key={f.id} p={f.peca} onFavorito={toggleFavorito} favorited={true} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

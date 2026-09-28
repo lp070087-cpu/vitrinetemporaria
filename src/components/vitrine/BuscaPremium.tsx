@@ -18,6 +18,15 @@ function precoPublico(p: SugestaoProduto): number {
 interface SugestaoCategoria { slug: string; nome: string; }
 interface SugestaoMarca { nome: string; }
 
+/**
+ * Busca da vitrine.
+ *
+ * Toda a mecânica é preservada: debounce de 250ms, /api/vitrine/busca,
+ * histórico em localStorage, populares via /api/vitrine/mais-vendidos e a
+ * navegação para produto/categoria/marca. O que muda é a apresentação —
+ * campo em pílula dentro do cabeçalho escuro e painel de sugestões com a
+ * mesma hierarquia visual das demais superfícies da loja.
+ */
 export default function BuscaPremium({ className = '' }: { className?: string }) {
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -28,6 +37,7 @@ export default function BuscaPremium({ className = '' }: { className?: string })
   const [marcas, setMarcasSug] = useState<SugestaoMarca[]>([]);
   const [historico, setHistorico] = useState<string[]>([]);
   const [populares, setPopulares] = useState<SugestaoProduto[]>([]);
+  const [imgFalhou, setImgFalhou] = useState<Record<string, boolean>>({});
   const ref = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
@@ -55,7 +65,7 @@ export default function BuscaPremium({ className = '' }: { className?: string })
         setCategoriasSug(data.categoriasSug || []);
         setMarcasSug(data.marcasSug || []);
       }
-    } catch { /* */ }
+    } catch { /* segue com a lista anterior */ }
     setLoading(false);
   }, []);
 
@@ -90,30 +100,38 @@ export default function BuscaPremium({ className = '' }: { className?: string })
   const mostrarPopulares = !q.trim() && populares.length > 0;
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
-      <div className="relative">
-        <input value={q} onChange={e => onChange(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()}
-          onFocus={() => setShow(true)}
-          placeholder="Buscar peças, marcas..."
-          className="w-full bg-white/10 border border-white/10 rounded-xl py-3 px-5 pl-12 text-sm text-white placeholder:text-slate-400 outline-none focus:bg-white/15 focus:border-white/20 transition-all" />
-        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div ref={ref} className={`mv-search ${className}`}>
+      <div className="mv-search-field">
+        <svg className="w-4 h-4 text-[#a9b6ca] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        {loading && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+        <input
+          value={q}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && search()}
+          onFocus={() => setShow(true)}
+          placeholder="Buscar peça, marca ou modelo da moto…"
+          className="mv-search-input"
+          aria-label="Buscar produtos"
+        />
+        {loading && <span className="w-4 h-4 rounded-full border-2 border-white/25 border-t-white animate-spin flex-shrink-0" />}
+        <button onClick={() => search()} className="mv-search-submit" aria-label="Buscar">
+          <span>Buscar</span>
+          <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
       </div>
 
       {show && (
-        <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden z-50 max-h-[500px] overflow-y-auto">
-
+        <div className="mv-suggest">
           {/* Histórico de buscas */}
           {mostrarHistorico && (
-            <div className="px-4 py-3 border-b border-slate-100">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">🔍 Buscas recentes</p>
+            <div className="mv-suggest-group">
+              <p className="mv-suggest-head">Buscas recentes</p>
               <div className="flex flex-wrap gap-1.5">
                 {historico.map((h, i) => (
-                  <button key={i} onClick={() => { setQ(h); buscar(h); }}
-                    className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-full text-[11px] text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                  <button key={i} onClick={() => { setQ(h); buscar(h); }} className="mv-chip">
                     {h}
                   </button>
                 ))}
@@ -122,15 +140,14 @@ export default function BuscaPremium({ className = '' }: { className?: string })
           )}
 
           {/* Populares */}
-          {mostrarPopulares && populares.length > 0 && (
-            <div className="px-4 py-3 border-b border-slate-100">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">🔥 Mais buscados</p>
-              <div className="space-y-1">
+          {mostrarPopulares && (
+            <div className="mv-suggest-group">
+              <p className="mv-suggest-head">Mais buscados</p>
+              <div className="flex flex-col">
                 {populares.slice(0, 4).map(p => (
-                  <button key={p.id} onClick={() => irProduto(p.id)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-left transition-colors">
-                    <span className="text-[11px] text-slate-600 truncate">{p.nome}</span>
-                    <span className="text-[10px] text-slate-400 ml-auto">{fm(precoPublico(p))}</span>
+                  <button key={p.id} onClick={() => irProduto(p.id)} className="mv-suggest-item">
+                    <span className="text-xs text-[var(--mv-text-2)] truncate flex-1 text-left">{p.nome}</span>
+                    <span className="text-[11px] font-bold text-[var(--mv-text)] flex-shrink-0">{fm(precoPublico(p))}</span>
                   </button>
                 ))}
               </div>
@@ -140,58 +157,75 @@ export default function BuscaPremium({ className = '' }: { className?: string })
           {/* Resultados da busca */}
           {q.length >= 2 && temResultados && (
             <>
-              {/* Categorias */}
               {categorias.length > 0 && (
-                <div className="px-4 py-2 border-b border-slate-50">
-                  <p className="text-[10px] text-brand-600 uppercase font-bold mb-1.5">📂 Categorias</p>
-                  {categorias.map(c => (
-                    <button key={c.slug} onClick={() => irCategoria(c.slug)}
-                      className="w-full text-left px-2 py-1.5 text-xs text-slate-600 hover:bg-brand-50 rounded-lg transition-colors">→ {c.nome}</button>
-                  ))}
+                <div className="mv-suggest-group">
+                  <p className="mv-suggest-head">Categorias</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {categorias.map(c => (
+                      <button key={c.slug} onClick={() => irCategoria(c.slug)} className="mv-chip">
+                        {c.nome}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
-              {/* Marcas */}
+
               {marcas.length > 0 && (
-                <div className="px-4 py-2 border-b border-slate-50">
-                  <p className="text-[10px] text-brand-600 uppercase font-bold mb-1.5">🏭 Marcas</p>
-                  {marcas.map(m => (
-                    <button key={m.nome} onClick={() => irMarca(m.nome)}
-                      className="w-full text-left px-2 py-1.5 text-xs text-slate-600 hover:bg-brand-50 rounded-lg transition-colors">→ {m.nome}</button>
-                  ))}
+                <div className="mv-suggest-group">
+                  <p className="mv-suggest-head">Marcas</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {marcas.map(m => (
+                      <button key={m.nome} onClick={() => irMarca(m.nome)} className="mv-chip">
+                        {m.nome}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
-              {/* Produtos */}
+
               {produtos.length > 0 && (
-                <div className="px-4 py-2">
-                  <p className="text-[10px] text-brand-600 uppercase font-bold mb-1.5">📦 Produtos</p>
-                  {produtos.map(s => (
-                    <button key={s.id} onClick={() => irProduto(s.id)}
-                      className="w-full flex items-center gap-3 px-2 py-2 hover:bg-slate-50 text-left rounded-lg transition-colors">
-                      <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {s.imagemUrl ? <img src={s.imagemUrl} alt="" className="w-full h-full object-cover" /> :
-                          <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 truncate">{s.nome}</p>
-                        <p className="text-[10px] text-slate-400">{s.marca || ''}</p>
-                      </div>
-                      <span className="text-xs font-bold text-slate-800 shrink-0">{fm(precoPublico(s))}</span>
-                    </button>
-                  ))}
+                <div className="mv-suggest-group">
+                  <p className="mv-suggest-head">Produtos</p>
+                  <div className="flex flex-col gap-0.5">
+                    {produtos.map(s => (
+                      <button key={s.id} onClick={() => irProduto(s.id)} className="mv-suggest-item">
+                        <span className="w-11 h-11 rounded-lg bg-[var(--mv-surface-2)] border border-[var(--mv-line)] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {s.imagemUrl && !imgFalhou[s.id] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.imagemUrl} alt="" className="w-full h-full object-cover"
+                              onError={() => setImgFalhou(prev => ({ ...prev, [s.id]: true }))} />
+                          ) : (
+                            <svg className="w-5 h-5 text-[var(--mv-text-3)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="flex-1 min-w-0 text-left">
+                          <span className="block text-xs font-semibold text-[var(--mv-text)] truncate">{s.nome}</span>
+                          {s.marca && <span className="block text-[10px] text-[var(--mv-text-3)] truncate">{s.marca}</span>}
+                        </span>
+                        <span className="text-xs font-bold text-[var(--mv-text)] flex-shrink-0">{fm(precoPublico(s))}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
           )}
 
-          {/* Rodapé da busca */}
+          {/* Atalho para todos os resultados */}
           {q.length >= 2 && (
-            <button onClick={() => search()} className="w-full py-2.5 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold transition-colors border-t border-slate-100">
-              Ver todos os resultados para "{q.trim()}"
+            <button onClick={() => search()}
+              className="w-full py-3 bg-[var(--mv-brand-soft)] hover:bg-[#e2edfc] text-[var(--mv-brand)] text-xs font-bold transition-colors border-t border-[var(--mv-line)]">
+              Ver todos os resultados para “{q.trim()}”
             </button>
           )}
 
           {q.length >= 2 && !temResultados && !loading && (
-            <div className="py-6 text-center text-xs text-slate-400">Nenhum resultado encontrado para "{q.trim()}"</div>
+            <div className="py-8 text-center">
+              <p className="text-xs text-[var(--mv-text-2)] font-semibold">Nenhum resultado para “{q.trim()}”</p>
+              <p className="text-[11px] text-[var(--mv-text-3)] mt-1">Tente o nome da peça, a marca ou o modelo da moto.</p>
+            </div>
           )}
         </div>
       )}

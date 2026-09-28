@@ -6,11 +6,20 @@ import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
 import ListaProdutoPremium from '@/components/vitrine/ListaProdutoPremium';
 import FiltrosBarra from '@/components/vitrine/FiltrosBarra';
 import ComparadorVitrine from '@/components/vitrine/ComparadorVitrine';
-import LogoOficina from '@/components/LogoOficina';
-import { getClienteVitrine } from '@/lib/vitrine-session';
 
-const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const POR_PAGINA = 24;
 
+/**
+ * Catálogo / busca.
+ *
+ * A tela usa DUAS apresentações do MESMO FiltrosBarra:
+ *  • Desktop (≥1024px): painel fixo na coluna da esquerda (acompanha a rolagem);
+ *  • Celular: gaveta inferior (`.mv-drawer`) aberta pelo botão "Filtros".
+ * Um componente só, duas molduras — nenhuma regra de filtragem duplicada.
+ *
+ * Nada da lógica mudou: os mesmos parâmetros vão para /api/vitrine/busca, as
+ * pastas de subcategoria continuam data-driven e o comparador segue limitado a 4.
+ */
 export default function CatalogoContent() {
   const searchParams = useSearchParams();
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -29,7 +38,7 @@ export default function CatalogoContent() {
   const [mode, setMode] = useState<'grid' | 'list'>('grid');
   const [comparar, setComparar] = useState<any[]>([]);
   const [showComparador, setShowComparador] = useState(false);
-  const [cliente, setCliente] = useState<any>(null);
+  const [drawerAberto, setDrawerAberto] = useState(false);
   // AJUSTE 1 — pastas de subcategorias na vitrine pública. Quando a categoria tem
   // subcategorias, mostra pastas 📁 antes de abrir os produtos direto.
   const [verTodosPasta, setVerTodosPasta] = useState(false);
@@ -70,10 +79,13 @@ export default function CatalogoContent() {
   const catSlugAtual = filtros.categoria;
   useEffect(() => { setVerTodosPasta(false); }, [catSlugAtual]);
 
+  // Trava a rolagem do fundo enquanto a gaveta de filtros está aberta (celular).
   useEffect(() => {
-    const d = getClienteVitrine();
-    if (d) setCliente(d);
-  }, []);
+    if (!drawerAberto) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = anterior; };
+  }, [drawerAberto]);
 
   useEffect(() => {
     // Item 1: categorias do filtro 100% data-driven (só categorias com produtos visíveis).
@@ -90,6 +102,14 @@ export default function CatalogoContent() {
   // Nesta visão de pastas, ainda não há subcategoria escolhida.
   const mostrandoPastas = !filtros.subcategoria && pastasDaCategoria.length > 0 && !verTodosPasta;
 
+  const q = searchParams.get('q');
+  const marcaUrl = searchParams.get('marca');
+  const titulo = q
+    ? `Busca: “${q}”`
+    : marcaUrl
+      ? `Marca: ${marcaUrl}`
+      : catAtivaPasta?.nome || 'Catálogo de produtos';
+
   function toggleComparar(id: string) {
     setComparar(prev => {
       if (prev.find(p => p.id === id)) return prev.filter(p => p.id !== id);
@@ -99,127 +119,221 @@ export default function CatalogoContent() {
     });
   }
 
+  function limpar() {
+    setFiltros({ marca: '', categoria: '', precoMin: '', precoMax: '', promocao: false, compatibilidade: '', subcategoria: '' });
+    setPagina(1);
+    setVerTodosPasta(false);
+    // `q` e `marca` vivem na URL — só saem recarregando o catálogo limpo.
+    if (q || marcaUrl) window.location.href = '/vitrine/catalogo';
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+  const filtrosAtivos = [filtros.categoria, filtros.subcategoria, filtros.marca, filtros.compatibilidade, filtros.precoMin, filtros.precoMax].filter(Boolean).length + (filtros.promocao ? 1 : 0);
+
   return (
-    <div className="min-h-screen bg-[#F3F6FB]">
-      <header className="bg-[#0D1117] text-white">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/vitrine" className="flex items-center gap-2.5">
-            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
-            <span className="font-extrabold text-sm">Catálogo</span>
-          </a>
-          <div className="flex items-center gap-3 text-xs">
-            {comparar.length > 0 && (
-              <button onClick={() => setShowComparador(true)} className="px-3 py-1.5 bg-brand-600 rounded-lg font-bold">
-                Comparar ({comparar.length})
-              </button>
-            )}
-            {cliente ? (
-              <a href="/vitrine/perfil" className="text-slate-400 hover:text-white">Olá, {cliente.nome?.split(' ')[0]}</a>
-            ) : (
-              <a href="/vitrine/login" className="text-slate-400 hover:text-white">Entrar</a>
-            )}
-            <a href="/vitrine/carrinho" className="px-4 py-2 bg-brand-600 rounded-lg font-bold">Carrinho</a>
-          </div>
-        </div>
-      </header>
+    <div className="mv-container mv-section">
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-extrabold text-slate-800 mb-2">{searchParams.get('q') ? `Busca: "${searchParams.get('q')}"` : searchParams.get('marca') ? `Marca: ${searchParams.get('marca')}` : 'Catálogo de Produtos'}</h1>
-        <p className="text-sm text-slate-500 mb-6">{total} produtos encontrados</p>
+      {/* MIGALHAS + CABEÇALHO DA LISTA */}
+      <nav className="mv-crumbs mb-3" aria-label="Você está aqui">
+        <a href="/vitrine">Início</a>
+        <span>/</span>
+        <span className="text-[var(--mv-text-2)]">{titulo}</span>
+      </nav>
 
-        {/* Filtros e Ordenação */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6">
-          <FiltrosBarra categorias={categorias} marcas={marcas} filtros={filtros} onChange={setFiltros} mode={mode} onModeChange={setMode} />
-          <div className="flex items-center justify-end mt-3 pt-3 border-t border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-400 uppercase font-bold">Ordenar:</span>
-              <select value={ordem} onChange={e => setOrdem(e.target.value)}
-                className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400">
-                <option value="relevancia">Relevância</option>
-                <option value="menor_preco">Menor Preço</option>
-                <option value="maior_preco">Maior Preço</option>
-                <option value="mais_recentes">Mais Recentes</option>
-                <option value="maior_desconto">Maior Desconto</option>
-                <option value="mais_vendidos">Mais Vendidos</option>
-              </select>
-            </div>
-          </div>
+      <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--mv-text)]">{titulo}</h1>
+          <p className="text-sm text-[var(--mv-text-2)] mt-1.5">
+            {loading ? 'Buscando produtos…' : `${total} ${total === 1 ? 'produto encontrado' : 'produtos encontrados'}`}
+          </p>
         </div>
 
-        {/* Comparador */}
-        {showComparador && comparar.length > 0 && (
-          <ComparadorVitrine produtos={comparar} onClose={() => setShowComparador(false)} />
-        )}
-
-        {/* AJUSTE 1 — PASTAS DE SUBCATEGORIAS (vitrine pública).
-            Categoria com subcategorias → NÃO abre produtos direto: mostra pastas 📁.
-            Só pastas com produto visível (totalProdutos > 0). "Ver todos" abre a grade. */}
-        {!loading && mostrandoPastas && (
-          <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <p className="text-sm font-bold text-slate-800">Escolha uma categoria de {catAtivaPasta?.nome || ''}:</p>
-              <button onClick={() => setVerTodosPasta(true)}
-                className="text-xs text-brand-600 hover:text-brand-700 font-bold underline underline-offset-2">Ver todos os produtos</button>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {pastasDaCategoria.map(s => (
-                <button key={s.slug} onClick={() => { setFiltros({ ...filtros, subcategoria: s.slug, categoria: filtros.categoria }); setPagina(1); }}
-                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 min-h-[140px] shadow-sm hover:shadow-md hover:border-brand-300 hover:bg-brand-50/40 transition-all duration-200">
-                  <span className="text-4xl">📁</span>
-                  <span className="font-bold text-sm text-slate-800 group-hover:text-brand-700 text-center leading-tight">{s.nome}</span>
-                  <span className="text-[11px] text-slate-400 font-medium">{s.totalProdutos ?? 0} produto{(s.totalProdutos ?? 0) !== 1 ? 's' : ''}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* AJUSTE 1 — "← Voltar para as pastas" quando está dentro de uma pasta */}
-        {!loading && filtros.subcategoria && pastasDaCategoria.length > 0 && (
-          <button onClick={() => { setFiltros({ ...filtros, subcategoria: '' }); setVerTodosPasta(false); setPagina(1); }}
-            className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-bold mb-4">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-            ← Voltar para as pastas de {catAtivaPasta?.nome || 'Acessórios'}
+        {/* Barra de ações: filtros (celular) + ordenação */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => setDrawerAberto(true)}
+            className="mv-toggle lg:hidden">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M6 12h12M10 20h4" /></svg>
+            Filtros
+            {filtrosAtivos > 0 && (
+              <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--mv-brand)] text-white text-[10px] font-extrabold flex items-center justify-center">{filtrosAtivos}</span>
+            )}
           </button>
-        )}
 
-        {/* Resultados */}
-        {loading ? (
-          <div className="text-center py-16"><div className="w-8 h-8 border-3 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto"/></div>
-        ) : produtos.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
-            <p className="text-sm text-slate-400 mb-4">Nenhum produto encontrado</p>
-            <button onClick={() => { window.location.href = '/vitrine/catalogo'; }} className="text-brand-600 text-sm font-bold">Limpar filtros</button>
-          </div>
-        ) : mostrandoPastas ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-slate-400">Escolha uma pasta acima para ver os produtos de {catAtivaPasta?.nome || 'esta categoria'}.</p>
-          </div>
-        ) : (
-          <>
-            {mode === 'grid' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {produtos.map(p => <CardProdutoPremium key={p.id} p={p} onComparar={toggleComparar} comparado={comparar.some(c => c.id === p.id)} />)}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {produtos.map(p => <ListaProdutoPremium key={p.id} p={p} onComparar={toggleComparar} comparado={comparar.some(c => c.id === p.id)} />)}
-              </div>
-            )}
-
-            {/* Paginação */}
-            {total > 24 && (
-              <div className="flex items-center justify-center gap-2 mt-8">
-                <button disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-500 disabled:opacity-30 hover:bg-slate-50">Anterior</button>
-                <span className="text-xs text-slate-500">Página {pagina} de {Math.ceil(total / 24)}</span>
-                <button disabled={pagina >= Math.ceil(total / 24)} onClick={() => setPagina(p => p + 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-500 disabled:opacity-30 hover:bg-slate-50">Próxima</button>
-              </div>
-            )}
-          </>
-        )}
+          <label className="flex items-center gap-2 mv-toggle cursor-pointer">
+            <span className="text-[var(--mv-text-3)] font-bold uppercase tracking-wider text-[10px]">Ordenar</span>
+            <select value={ordem} onChange={e => { setOrdem(e.target.value); setPagina(1); }}
+              className="bg-transparent border-0 outline-none font-bold text-[var(--mv-text)] cursor-pointer pr-1">
+              <option value="relevancia">Relevância</option>
+              <option value="menor_preco">Menor preço</option>
+              <option value="maior_preco">Maior preço</option>
+              <option value="mais_recentes">Mais recentes</option>
+              <option value="maior_desconto">Maior desconto</option>
+              <option value="mais_vendidos">Mais vendidos</option>
+            </select>
+          </label>
+        </div>
       </div>
+
+      {/* Comparador já aberto */}
+      {showComparador && comparar.length > 0 && (
+        <ComparadorVitrine produtos={comparar} onClose={() => setShowComparador(false)} />
+      )}
+
+      <div className="lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-8 lg:items-start">
+
+        {/* PAINEL DE FILTROS — só desktop; no celular vive na gaveta.
+            `--mv-header-total` é a altura REAL do cabeçalho preso (as três
+            faixas somadas). Com `--mv-header-h` o painel subia por baixo do
+            cabeçalho e o começo da lista de filtros ficava escondido. */}
+        <aside className="hidden lg:block lg:sticky"
+          style={{
+            zIndex: 'var(--mv-z-sticky)',
+            top: 'calc(var(--mv-header-total) + 16px)',
+            maxHeight: 'calc(100vh - var(--mv-header-total) - 32px)',
+            overflowY: 'auto',
+          }}>
+          <div className="mv-filter-deck p-5">
+            <FiltrosBarra categorias={categorias} marcas={marcas} filtros={filtros} onChange={setFiltros}
+              mode={mode} onModeChange={setMode} onLimpar={limpar} />
+          </div>
+        </aside>
+
+        <div>
+          {/* GAVETA DE FILTROS (celular) */}
+          {drawerAberto && (
+            <>
+              <div className="mv-drawer-backdrop" onClick={() => setDrawerAberto(false)} />
+              <div className="mv-drawer" role="dialog" aria-modal="true" aria-label="Filtros">
+                <div className="sticky top-0 bg-[var(--mv-surface)] border-b border-[var(--mv-line)] px-5 py-4 flex items-center justify-between z-10 rounded-t-[var(--mv-r-xl)]">
+                  <p className="font-extrabold text-[var(--mv-text)]">Filtros</p>
+                  <button type="button" onClick={() => setDrawerAberto(false)} aria-label="Fechar filtros"
+                    className="w-8 h-8 rounded-lg hover:bg-[var(--mv-surface-2)] flex items-center justify-center text-[var(--mv-text-2)]">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="p-5 pb-8">
+                  <FiltrosBarra categorias={categorias} marcas={marcas} filtros={filtros}
+                    onChange={f => { setFiltros(f); setPagina(1); }} onLimpar={limpar} />
+                </div>
+                <div className="sticky bottom-0 bg-[var(--mv-surface)] border-t border-[var(--mv-line)] p-4">
+                  <button type="button" onClick={() => setDrawerAberto(false)} className="mv-btn mv-btn-primary mv-btn-block mv-btn-lg">
+                    Ver {total} {total === 1 ? 'produto' : 'produtos'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* AJUSTE 1 — PASTAS DE SUBCATEGORIAS (vitrine pública).
+              Categoria com subcategorias → NÃO abre produtos direto: mostra pastas 📁.
+              Só pastas com produto visível (totalProdutos > 0). "Ver todos" abre a grade. */}
+          {!loading && mostrandoPastas && (
+            <div className="mv-panel mb-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <p className="text-sm font-bold text-[var(--mv-text)]">Escolha o tipo de {catAtivaPasta?.nome || 'peça'}</p>
+                <button type="button" onClick={() => setVerTodosPasta(true)}
+                  className="text-xs text-[var(--mv-brand)] hover:underline font-bold">Ver todos os produtos</button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {pastasDaCategoria.map(s => (
+                  <button key={s.slug} type="button"
+                    onClick={() => { setFiltros({ ...filtros, subcategoria: s.slug, categoria: filtros.categoria }); setPagina(1); }}
+                    className="mv-cat-card group">
+                    <span className="mv-cat-icon">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                      </svg>
+                    </span>
+                    <span className="text-xs font-bold text-[var(--mv-text)] leading-tight text-center">{s.nome}</span>
+                    <span className="text-[10px] text-[var(--mv-text-3)]">{s.totalProdutos ?? 0} produto{(s.totalProdutos ?? 0) !== 1 ? 's' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AJUSTE 1 — "← Voltar para as pastas" quando está dentro de uma pasta */}
+          {!loading && filtros.subcategoria && pastasDaCategoria.length > 0 && (
+            <button type="button" onClick={() => { setFiltros({ ...filtros, subcategoria: '' }); setVerTodosPasta(false); setPagina(1); }}
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--mv-brand)] hover:underline font-bold mb-4">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M15 19l-7-7 7-7" /></svg>
+              Voltar para os tipos de {catAtivaPasta?.nome || 'acessórios'}
+            </button>
+          )}
+
+          {/* RESULTADOS */}
+          {loading ? (
+            <div className="mv-grid-cat">
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} className="mv-skel aspect-[3/4] rounded-[var(--mv-r-lg)]" />)}
+            </div>
+          ) : produtos.length === 0 ? (
+            <div className="mv-empty">
+              <svg className="w-10 h-10 mx-auto text-[var(--mv-line-strong)] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
+              <p className="text-sm font-bold text-[var(--mv-text)]">Nenhum produto encontrado</p>
+              <p className="text-xs text-[var(--mv-text-3)] mt-1 mb-4">Tente remover um filtro ou buscar pelo nome da peça.</p>
+              <button type="button" onClick={limpar} className="mv-btn mv-btn-primary">Limpar filtros</button>
+            </div>
+          ) : mostrandoPastas ? (
+            <div className="mv-empty">
+              <p className="text-sm text-[var(--mv-text-2)] font-semibold">
+                Escolha um tipo acima para ver os produtos de {catAtivaPasta?.nome || 'esta categoria'}.
+              </p>
+            </div>
+          ) : (
+            <>
+              {mode === 'grid' ? (
+                <div className="mv-grid-cat">
+                  {produtos.map(p => <CardProdutoPremium key={p.id} p={p} onComparar={toggleComparar} comparado={comparar.some(c => c.id === p.id)} />)}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {produtos.map(p => <ListaProdutoPremium key={p.id} p={p} onComparar={toggleComparar} comparado={comparar.some(c => c.id === p.id)} />)}
+                </div>
+              )}
+
+              {/* PAGINAÇÃO */}
+              {totalPaginas > 1 && (
+                <div className="flex items-center justify-center gap-1.5 mt-10 flex-wrap">
+                  <button type="button" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}
+                    className="mv-btn mv-btn-ghost !px-3.5">Anterior</button>
+
+                  {/* Janela de páginas em volta da atual — nunca uma fita infinita de números. */}
+                  {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                    .filter(n => n === 1 || n === totalPaginas || Math.abs(n - pagina) <= 1)
+                    .map((n, idx, arr) => (
+                      <span key={n} className="flex items-center gap-1.5">
+                        {idx > 0 && arr[idx - 1] !== n - 1 && <span className="text-[var(--mv-text-3)] px-1">…</span>}
+                        <button type="button" onClick={() => setPagina(n)} aria-current={n === pagina ? 'page' : undefined}
+                          className={`w-9 h-9 rounded-lg text-xs font-extrabold transition-colors ${
+                            n === pagina ? 'bg-[var(--mv-brand)] text-white' : 'bg-[var(--mv-surface)] border border-[var(--mv-line)] text-[var(--mv-text-2)] hover:border-[var(--mv-brand-line)] hover:text-[var(--mv-brand)]'
+                          }`}>{n}</button>
+                      </span>
+                    ))}
+
+                  <button type="button" disabled={pagina >= totalPaginas} onClick={() => setPagina(p => p + 1)}
+                    className="mv-btn mv-btn-ghost !px-3.5">Próxima</button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* BARRA FLUTUANTE DO COMPARADOR */}
+      {comparar.length > 0 && !showComparador && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 mv-container !w-auto max-w-[92vw]">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--mv-r-pill)] bg-[var(--mv-ink)] text-white shadow-[var(--mv-sh-xl)]">
+            <span className="text-xs font-bold whitespace-nowrap">{comparar.length} para comparar</span>
+            <button type="button" onClick={() => setShowComparador(true)} className="mv-btn mv-btn-primary !py-2 !px-4 !text-xs">Comparar</button>
+            <button type="button" onClick={() => setComparar([])} aria-label="Limpar comparação"
+              className="w-7 h-7 rounded-full hover:bg-white/15 flex items-center justify-center flex-none">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getClienteVitrine, clearClienteVitrine } from '@/lib/vitrine-session';
-import LogoOficina from '@/components/LogoOficina';
 import { DADOS_OFICINA } from '@/lib/empresa';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -16,16 +15,21 @@ const LABEL_STATUS: Record<string, string> = {
   CANCELADO: 'Cancelado',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  PEDIDO_RECEBIDO: 'bg-sky-50 text-sky-700',
-  EM_SEPARACAO: 'bg-amber-50 text-amber-700',
-  PRONTO_PARA_RETIRADA: 'bg-emerald-50 text-emerald-700',
-  RETIRADO: 'bg-slate-100 text-slate-600',
-  CANCELADO: 'bg-red-50 text-red-700',
+const STATUS_BADGE: Record<string, string> = {
+  PEDIDO_RECEBIDO: 'mv-badge-brand',
+  EM_SEPARACAO: 'mv-badge-gold',
+  PRONTO_PARA_RETIRADA: 'mv-badge-ok',
+  RETIRADO: 'mv-badge-soft',
+  CANCELADO: 'mv-badge-alert',
 };
 
 const STATUS_STEPS = ['PEDIDO_RECEBIDO', 'EM_SEPARACAO', 'PRONTO_PARA_RETIRADA', 'RETIRADO'];
 
+/**
+ * Perfil do cliente. Mantém as duas consultas originais (pedidos e orçamentos),
+ * a expansão do pedido, o código de retirada, o histórico e a saída da conta.
+ * O pedido recém-finalizado continua sendo aberto automaticamente via ?pedido=N.
+ */
 export default function PerfilContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,7 +38,7 @@ export default function PerfilContent() {
   const [cliente, setCliente] = useState<any>(null);
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [orcamentos, setOrcamentos] = useState<any[]>([]);
-  const [tab, setTab] = useState<'pedidos'|'orcamentos'|'favoritos'|'dados'>(pedidoDestaque ? 'pedidos' : 'pedidos');
+  const [tab, setTab] = useState<'pedidos' | 'orcamentos' | 'favoritos' | 'dados'>('pedidos');
   const [loading, setLoading] = useState(true);
   const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null);
 
@@ -68,10 +72,10 @@ export default function PerfilContent() {
   function sair() { clearClienteVitrine(); router.push('/vitrine'); }
 
   const TABS = [
-    { key: 'pedidos' as const, label: '📋 Meus Pedidos' },
-    { key: 'orcamentos' as const, label: '📝 Orçamentos' },
-    { key: 'favoritos' as const, label: '❤️ Favoritos' },
-    { key: 'dados' as const, label: '👤 Meus Dados' },
+    { key: 'pedidos' as const, label: 'Meus pedidos' },
+    { key: 'orcamentos' as const, label: 'Orçamentos' },
+    { key: 'favoritos' as const, label: 'Favoritos' },
+    { key: 'dados' as const, label: 'Meus dados' },
   ];
 
   function getStatusStep(status: string) {
@@ -79,136 +83,169 @@ export default function PerfilContent() {
     return STATUS_STEPS.indexOf(status);
   }
 
+  const primeiroNome = String(cliente.nome || '').split(' ')[0];
+
   return (
-    <div className="min-h-screen bg-[#F3F6FB]">
-      <header className="bg-[#0D1117] text-white">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/vitrine" className="flex items-center gap-2.5">
-            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
-            <span className="font-extrabold text-sm">Meu Perfil</span>
-          </a>
-          <span className="text-xs text-slate-400">{cliente.nome}</span>
-          <button onClick={sair} className="text-xs text-slate-400 hover:text-white">Sair</button>
-        </div>
-      </header>
+    <div className="mv-container mv-section">
+      <nav className="mv-crumbs mb-3" aria-label="Você está aqui">
+        <a href="/vitrine">Início</a>
+        <span>/</span>
+        <span className="text-[var(--mv-text-2)]">Minha conta</span>
+      </nav>
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 overflow-x-auto">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${tab === t.key ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}>
-              {t.label}
-            </button>
-          ))}
+      {/* CABEÇALHO DA CONTA */}
+      <div className="mv-panel !p-5 md:!p-6 mb-6 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <span className="w-12 h-12 rounded-full bg-[var(--mv-brand)] text-white font-extrabold flex items-center justify-center flex-none text-lg">
+            {primeiroNome.charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-lg md:text-xl font-extrabold tracking-tight text-[var(--mv-text)] truncate">
+              Olá, {primeiroNome}
+            </h1>
+            <p className="text-xs text-[var(--mv-text-3)] truncate">{cliente.email || cliente.telefone}</p>
+          </div>
         </div>
+        <button type="button" onClick={sair} className="mv-btn mv-btn-ghost !text-xs">Sair da conta</button>
+      </div>
 
-        {/* Pedidos da Vitrine */}
-        {tab === 'pedidos' && (
-          loading ? <div className="text-center py-8"><div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto"/></div> :
-          pedidos.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
-              </div>
-              <p className="text-sm text-slate-400">Nenhum pedido encontrado</p>
-              <a href="/vitrine" className="text-brand-600 text-xs font-bold mt-2 inline-block">Ver produtos →</a>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {pedidos.map(p => (
-                <div key={p.id} className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${pedidoExpandido === p.id ? 'border-brand-300' : 'border-slate-200'}`}>
-                  {/* Header */}
-                  <div className="p-4 cursor-pointer" onClick={() => setPedidoExpandido(pedidoExpandido === p.id ? null : p.id)}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-extrabold text-brand-600">#{p.numero}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUS_COLORS[p.status] || 'bg-slate-100 text-slate-500'}`}>
+      {/* ABAS */}
+      <div className="flex gap-1.5 overflow-x-auto mb-6 border-b border-[var(--mv-line)] pb-px" style={{ scrollbarWidth: 'none' }}>
+        {TABS.map(t => (
+          <button key={t.key} type="button" onClick={() => setTab(t.key)}
+            className={`relative px-3.5 py-2.5 text-xs font-bold whitespace-nowrap transition-colors flex-none ${
+              tab === t.key ? 'text-[var(--mv-brand)]' : 'text-[var(--mv-text-3)] hover:text-[var(--mv-text)]'
+            }`}>
+            {t.label}
+            <span className={`absolute left-2 right-2 -bottom-px h-0.5 rounded-full ${tab === t.key ? 'bg-[var(--mv-brand)]' : 'bg-transparent'}`} />
+          </button>
+        ))}
+      </div>
+
+      {/* PEDIDOS */}
+      {tab === 'pedidos' && (
+        loading ? (
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="mv-skel h-32 rounded-[var(--mv-r-lg)]" />)}
+          </div>
+        ) : pedidos.length === 0 ? (
+          <div className="mv-empty !py-20">
+            <svg className="w-14 h-14 mx-auto text-[var(--mv-line-strong)] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+            <p className="text-base font-bold text-[var(--mv-text)]">Nenhum pedido ainda</p>
+            <p className="text-xs text-[var(--mv-text-3)] mt-1 mb-6">Monte seu primeiro pedido e retire na loja.</p>
+            <a href="/vitrine/catalogo" className="mv-btn mv-btn-primary mv-btn-lg">Ver catálogo</a>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {pedidos.map(p => {
+              const aberto = pedidoExpandido === p.id;
+              const semItens = !p.itens?.length;
+              return (
+                <div key={p.id} className={`mv-card !p-0 overflow-hidden ${aberto ? 'border-[var(--mv-brand-line)]' : ''}`}>
+                  {/* Cabeçalho do pedido */}
+                  <button type="button" onClick={() => setPedidoExpandido(aberto ? null : p.id)}
+                    aria-expanded={aberto}
+                    className="w-full text-left p-4">
+                    <div className="flex items-center justify-between gap-3 mb-2.5 flex-wrap">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="text-sm font-extrabold text-[var(--mv-brand)]">#{p.numero}</span>
+                        <span className={`mv-badge ${STATUS_BADGE[p.status] || 'mv-badge-soft'}`}>
                           {LABEL_STATUS[p.status] || p.status}
                         </span>
                         {p.formaPagamento && (
-                          <span className="text-[10px] text-slate-400">{p.formaPagamento.replace('_', ' ')}</span>
+                          <span className="text-[10px] text-[var(--mv-text-3)] uppercase font-bold tracking-wider">
+                            {String(p.formaPagamento).replace('_', ' ')}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-400">{new Date(p.createdAt).toLocaleDateString('pt-BR')}</span>
-                        <svg className={`w-4 h-4 text-slate-300 transition-transform ${pedidoExpandido === p.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                        <span className="text-xs text-[var(--mv-text-3)]">{new Date(p.createdAt).toLocaleDateString('pt-BR')}</span>
+                        <svg className={`w-4 h-4 text-[var(--mv-text-3)] transition-transform ${aberto ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </div>
                     </div>
 
-                    {/* Status bar (se não cancelado) */}
+                    {/* Etapas do pedido (se não cancelado) */}
                     {p.status !== 'CANCELADO' && (
-                      <div className="flex items-center gap-0 mt-2">
+                      <div className="mv-steps mt-1 mb-1">
                         {['Recebido', 'Separando', 'Pronto', 'Retirado'].map((step, i) => {
                           const done = getStatusStep(p.status) >= i;
                           return (
                             <div key={step} className="flex items-center flex-1 last:flex-none">
-                              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${done ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-                              <span className={`text-[9px] ml-1 ${done ? 'text-emerald-600 font-medium' : 'text-slate-300'}`}>{step}</span>
-                              {i < 3 && <div className={`flex-1 h-0.5 mx-1 ${done ? 'bg-emerald-300' : 'bg-slate-100'}`} />}
+                              <span className={`mv-step-dot ${done ? 'mv-done' : ''}`} />
+                              <span className={`text-[9px] ml-1.5 whitespace-nowrap ${done ? 'text-[var(--mv-ok)] font-bold' : 'text-[var(--mv-text-3)]'}`}>{step}</span>
+                              {i < 3 && <span className={`mv-step-bar ${done ? 'mv-done' : ''}`} />}
                             </div>
                           );
                         })}
                       </div>
                     )}
 
-                    <div className="flex items-end justify-between mt-2">
-                      <p className="text-xs text-slate-500">
-                        {p.itens?.length || 0} {p.itens?.length === 1 ? 'item' : 'itens'}
+                    <div className="flex items-end justify-between mt-2 gap-3">
+                      <p className="text-xs text-[var(--mv-text-2)]">
+                        {semItens ? 'Sem itens registrados' : `${p.itens!.length} ${p.itens!.length === 1 ? 'item' : 'itens'}`}
                       </p>
-                      <p className="text-base font-extrabold text-slate-800">{fm(Number(p.total))}</p>
+                      <p className="text-base font-extrabold text-[var(--mv-text)] tracking-tight">{fm(Number(p.total))}</p>
                     </div>
-                  </div>
+                  </button>
 
-                  {/* Expanded */}
-                  {pedidoExpandido === p.id && (
-                    <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
+                  {/* Detalhe expandido */}
+                  {aberto && (
+                    <div className="px-4 pb-4 pt-4 border-t border-[var(--mv-line)] flex flex-col gap-4">
+
                       {/* Itens */}
-                      <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">Produtos</p>
-                        <div className="space-y-1.5">
-                          {(p.itens || []).map((item: any, i: number) => (
-                            <div key={i} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 last:border-0">
-                              <div>
-                                <p className="font-medium text-slate-700">{item.peca.nome}</p>
-                                <p className="text-[10px] text-slate-400">{item.quantidade}x {fm(Number(item.precoVendido))}</p>
+                      {!semItens && (
+                        <div>
+                          <p className="mv-label">Produtos</p>
+                          <div className="flex flex-col">
+                            {(p.itens || []).map((item: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between gap-3 text-xs py-2 border-b border-[var(--mv-line)] last:border-b-0">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[var(--mv-text)] truncate">{item.peca.nome}</p>
+                                  <p className="text-[var(--mv-text-3)] mt-0.5">{item.quantidade}x {fm(Number(item.precoVendido))}</p>
+                                </div>
+                                <span className="font-extrabold text-[var(--mv-text)] whitespace-nowrap">{fm(Number(item.subtotal))}</span>
                               </div>
-                              <span className="font-bold text-slate-700">{fm(Number(item.subtotal))}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Retirada */}
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Retirada na Loja</p>
-                        <p className="text-xs text-slate-600">{DADOS_OFICINA.endereco} — {DADOS_OFICINA.cidade}</p>
-                        <p className="text-xs text-slate-400">Seg-Sex: 8h às 18h · Sáb: 8h às 13h</p>
-                        {p.retiradaNome && <p className="text-xs text-slate-500 mt-1">Retirada por: {p.retiradaNome}</p>}
-                      </div>
-
-                      {/* QR Code — para pedidos prontos */}
-                      {p.status === 'PRONTO_PARA_RETIRADA' && p.qrCode && (
-                        <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 text-center">
-                          <p className="text-[10px] text-brand-600 uppercase font-bold mb-3">Código de Retirada</p>
-                          <div className="bg-white inline-block px-6 py-3 rounded-lg border border-brand-200">
-                            <span className="text-sm font-extrabold text-brand-700 font-mono tracking-wider">{p.qrCode}</span>
+                            ))}
                           </div>
-                          <p className="text-[10px] text-slate-500 mt-2">Apresente este código no balcão para retirar seu pedido</p>
                         </div>
                       )}
 
-                      {/* Timeline */}
+                      {/* Código de retirada — só quando pronto */}
+                      {p.status === 'PRONTO_PARA_RETIRADA' && p.qrCode && (
+                        <div className="rounded-[var(--mv-r-lg)] bg-[var(--mv-brand-soft)] border border-[var(--mv-brand-line)] p-4 text-center">
+                          <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--mv-brand)] mb-2.5">Código de retirada</p>
+                          <span className="inline-block bg-white px-6 py-3 rounded-[var(--mv-r-md)] border border-[var(--mv-brand-line)] text-sm font-extrabold text-[var(--mv-brand)] tracking-[0.15em]">
+                            {p.qrCode}
+                          </span>
+                          <p className="text-[10px] text-[var(--mv-text-2)] mt-2.5">Apresente este código no balcão para retirar seu pedido.</p>
+                        </div>
+                      )}
+
+                      {/* Retirada */}
+                      <div className="rounded-[var(--mv-r-md)] bg-[var(--mv-surface-2)] border border-[var(--mv-line)] p-3.5">
+                        <p className="mv-label">Retirada na loja</p>
+                        <p className="text-xs text-[var(--mv-text-2)]">{DADOS_OFICINA.endereco} — {DADOS_OFICINA.cidade}</p>
+                        <p className="text-xs text-[var(--mv-text-3)] mt-0.5">{DADOS_OFICINA.horario}</p>
+                        {p.retiradaNome && (
+                          <p className="text-xs text-[var(--mv-text-2)] mt-1.5 font-semibold">Retirada por: {p.retiradaNome}</p>
+                        )}
+                      </div>
+
+                      {/* Linha do tempo */}
                       {p.historico && p.historico.length > 0 && (
                         <div>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">Linha do Tempo</p>
-                          <div className="space-y-1.5">
+                          <p className="mv-label">Linha do tempo</p>
+                          <div className="flex flex-col gap-2.5">
                             {p.historico.map((h: any) => (
-                              <div key={h.id} className="flex items-start gap-2 text-xs">
-                                <div className="w-1.5 h-1.5 rounded-full bg-brand-400 mt-1.5 flex-shrink-0" />
+                              <div key={h.id} className="flex items-start gap-2.5 text-xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[var(--mv-brand)] mt-1.5 flex-none" />
                                 <div>
-                                  <p className="text-slate-600">{h.descricao}</p>
-                                  <p className="text-[10px] text-slate-400">{new Date(h.createdAt).toLocaleString('pt-BR')}</p>
+                                  <p className="text-[var(--mv-text-2)]">{h.descricao}</p>
+                                  <p className="text-[10px] text-[var(--mv-text-3)] mt-0.5">{new Date(h.createdAt).toLocaleString('pt-BR')}</p>
                                 </div>
                               </div>
                             ))}
@@ -217,100 +254,115 @@ export default function PerfilContent() {
                       )}
 
                       {/* Resumo financeiro */}
-                      <div className="border-t border-slate-100 pt-2 space-y-1 text-xs">
-                        <div className="flex justify-between"><span className="text-slate-400">Subtotal</span><span>{fm(Number(p.subtotal))}</span></div>
+                      <div className="pt-3 border-t border-[var(--mv-line)] flex flex-col gap-1.5 text-xs">
+                        <div className="flex justify-between gap-3"><span className="text-[var(--mv-text-2)]">Subtotal</span><span className="text-[var(--mv-text)]">{fm(Number(p.subtotal))}</span></div>
                         {Number(p.descontoTotal) > 0 && (
-                          <div className="flex justify-between"><span className="text-emerald-600">Desconto</span><span className="text-emerald-600">-{fm(Number(p.descontoTotal))}</span></div>
+                          <div className="flex justify-between gap-3"><span className="text-[var(--mv-ok)]">Desconto</span><span className="text-[var(--mv-ok)]">− {fm(Number(p.descontoTotal))}</span></div>
                         )}
-                        <div className="flex justify-between font-bold text-slate-800 pt-1 border-t border-slate-100">
-                          <span>Total</span><span>{fm(Number(p.total))}</span>
+                        <div className="flex justify-between gap-3 font-bold text-[var(--mv-text)] pt-2 mt-1 border-t border-[var(--mv-line)]">
+                          <span>Total</span><span className="text-sm">{fm(Number(p.total))}</span>
                         </div>
-                        {p.formaPagamento && (
-                          <div className="flex justify-between text-[11px]"><span className="text-slate-400">Pagamento</span><span>{p.formaPagamento.replace('_', ' ')}</span></div>
-                        )}
                       </div>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )
-        )}
+              );
+            })}
+          </div>
+        )
+      )}
 
-        {/* Orçamentos */}
-        {tab === 'orcamentos' && (
-          orcamentos.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
-              <p className="text-sm text-slate-400">Nenhum orçamento encontrado</p>
-              <a href="/vitrine" className="text-brand-600 text-xs font-bold mt-2 inline-block">Ver produtos →</a>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {orcamentos.map(o => (
-                <div key={o.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-extrabold text-brand-600">#{o.numero}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                        o.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-700'
-                        : o.status === 'RECUSADO' ? 'bg-red-50 text-red-700'
-                        : o.status === 'CONCLUIDO' ? 'bg-slate-50 text-slate-600'
-                        : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {o.status === 'PENDENTE' ? 'Pendente' : o.status === 'APROVADO' ? 'Aprovado' : o.status === 'RECUSADO' ? 'Recusado' : 'Concluído'}
-                      </span>
+      {/* ORÇAMENTOS */}
+      {tab === 'orcamentos' && (
+        orcamentos.length === 0 ? (
+          <div className="mv-empty !py-20">
+            <p className="text-base font-bold text-[var(--mv-text)]">Nenhum orçamento ainda</p>
+            <p className="text-xs text-[var(--mv-text-3)] mt-1 mb-6">Os orçamentos que você pedir na loja aparecem aqui.</p>
+            <a href="/vitrine/catalogo" className="mv-btn mv-btn-primary">Ver catálogo</a>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {orcamentos.map(o => (
+              <div key={o.id} className="mv-panel">
+                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm font-extrabold text-[var(--mv-brand)]">#{o.numero}</span>
+                    <span className={`mv-badge ${
+                      o.status === 'APROVADO' ? 'mv-badge-ok'
+                        : o.status === 'RECUSADO' ? 'mv-badge-alert'
+                          : o.status === 'CONCLUIDO' ? 'mv-badge-soft'
+                            : 'mv-badge-gold'
+                    }`}>
+                      {o.status === 'PENDENTE' ? 'Pendente' : o.status === 'APROVADO' ? 'Aprovado' : o.status === 'RECUSADO' ? 'Recusado' : 'Concluído'}
+                    </span>
+                  </div>
+                  <span className="text-xs text-[var(--mv-text-3)]">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
+                </div>
+
+                {o.modeloMoto && <p className="text-xs text-[var(--mv-text-2)] mb-2">Moto: {o.modeloMoto}</p>}
+
+                <div className="flex flex-col mb-3">
+                  {(o.itens || []).map((item: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-3 text-xs py-1.5 border-b border-[var(--mv-line)] last:border-b-0">
+                      <span className="text-[var(--mv-text)] truncate">{item.peca.nome}</span>
+                      <span className="text-[var(--mv-text-3)] whitespace-nowrap">{item.quantidade}x {fm(Number(item.precoUnitario))}</span>
                     </div>
-                    <span className="text-xs text-slate-400">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                  {o.modeloMoto && <p className="text-xs text-slate-500 mb-2">Moto: {o.modeloMoto}</p>}
-                  <div className="space-y-1 mb-3">
-                    {(o.itens || []).map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-700">{item.peca.nome}</span>
-                        <span className="text-slate-500">{item.quantidade}x {fm(Number(item.precoUnitario))}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                    <span className="text-xs text-slate-500">Total: <strong className="text-slate-800 text-sm">{fm(Number(o.total))}</strong></span>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )
-        )}
 
-        {/* Favoritos */}
-        {tab === 'favoritos' && (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-            <p className="text-sm text-slate-400 mb-3">Gerencie seus produtos favoritos</p>
-            <a href="/vitrine/favoritos" className="text-brand-600 text-sm font-bold">Ver favoritos →</a>
-          </div>
-        )}
-
-        {/* Dados */}
-        {tab === 'dados' && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6 max-w-md">
-            <h3 className="text-sm font-bold text-slate-700 mb-4">Meus Dados</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] text-slate-400 uppercase font-bold">Nome</label>
-                <p className="text-sm font-medium text-slate-700">{cliente.nome}</p>
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-400 uppercase font-bold">Telefone</label>
-                <p className="text-sm font-medium text-slate-700">{cliente.telefone}</p>
-              </div>
-              {cliente.modeloMoto && (
-                <div>
-                  <label className="text-[10px] text-slate-400 uppercase font-bold">Moto</label>
-                  <p className="text-sm font-medium text-slate-700">{cliente.modeloMoto}</p>
+                <div className="flex items-center justify-between pt-3 border-t border-[var(--mv-line)]">
+                  <span className="text-xs text-[var(--mv-text-2)]">Total</span>
+                  <strong className="text-base font-extrabold text-[var(--mv-text)] tracking-tight">{fm(Number(o.total))}</strong>
                 </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        )
+      )}
+
+      {/* FAVORITOS */}
+      {tab === 'favoritos' && (
+        <div className="mv-panel text-center !py-14">
+          <svg className="w-12 h-12 mx-auto text-[var(--mv-line-strong)] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+          <p className="text-sm font-bold text-[var(--mv-text)]">Seus favoritos ficam em uma página própria</p>
+          <p className="text-xs text-[var(--mv-text-3)] mt-1 mb-5">Lá você remove o que não quer mais com um toque.</p>
+          <a href="/vitrine/favoritos" className="mv-btn mv-btn-primary">Ver favoritos</a>
+        </div>
+      )}
+
+      {/* DADOS */}
+      {tab === 'dados' && (
+        <div className="mv-panel max-w-md">
+          <h2 className="text-base font-extrabold text-[var(--mv-text)] mb-4">Meus dados</h2>
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="mv-label">Nome</p>
+              <p className="text-sm font-semibold text-[var(--mv-text)]">{cliente.nome}</p>
+            </div>
+            <div>
+              <p className="mv-label">Telefone</p>
+              <p className="text-sm font-semibold text-[var(--mv-text)]">{cliente.telefone}</p>
+            </div>
+            {cliente.email && (
+              <div>
+                <p className="mv-label">E-mail</p>
+                <p className="text-sm font-semibold text-[var(--mv-text)] break-all">{cliente.email}</p>
+              </div>
+            )}
+            {cliente.modeloMoto && (
+              <div>
+                <p className="mv-label">Moto</p>
+                <p className="text-sm font-semibold text-[var(--mv-text)]">{cliente.modeloMoto}</p>
+              </div>
+            )}
+          </div>
+          <p className="text-[11px] text-[var(--mv-text-3)] mt-5 pt-4 border-t border-[var(--mv-line)]">
+            Precisa alterar algum dado? Fale com a loja pelo WhatsApp.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -62,7 +62,7 @@ export default async function VitrineHome() {
   const lancamentos = [...vitrine].slice(0, 8);
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F3F6FB] flex items-center justify-center"><div className="w-10 h-10 border-3 border-brand-600 border-t-transparent rounded-full animate-spin"/></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><span className="mv-spin" /></div>}>
       <VitrineHomeClient
         destaques={destaques}
         ofertas={ofertas}

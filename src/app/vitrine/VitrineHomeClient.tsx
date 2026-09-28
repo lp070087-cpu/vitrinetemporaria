@@ -1,24 +1,34 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
-import BuscaPremium from '@/components/vitrine/BuscaPremium';
 import BannerCarrossel from '@/components/vitrine/BannerCarrossel';
-import MarcasVitrine from '@/components/vitrine/MarcasVitrine';
-import RodapePremium from '@/components/vitrine/RodapePremium';
+import MarcasVitrine, { MarcasGrade } from '@/components/vitrine/MarcasVitrine';
 import NewsletterVitrine from '@/components/vitrine/NewsletterVitrine';
-import PromocoesVitrine from '@/components/vitrine/PromocoesVitrine';
-import LogoOficina from '@/components/LogoOficina';
+import { PromocoesBlocos } from '@/components/vitrine/PromocoesVitrine';
+import SecaoVitrine from '@/components/vitrine/SecaoVitrine';
 import { getClienteVitrine } from '@/lib/vitrine-session';
+import { DADOS_OFICINA } from '@/lib/empresa';
 
-const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
+/**
+ * Home da vitrine.
+ *
+ * Composição em faixas alternadas (referência: o zig-zag bento do template-sass
+ * cruzado com a grade de serviços do maryane), para NÃO repetir o defeito antigo
+ * de sete grades de cards exatamente iguais, uma atrás da outra:
+ *
+ *   hero/carrossel → atalhos → destaques (bento) → promoções → pneus
+ *   → ofertas → mais vendidos → recomendados → vistos → novos
+ *   → categorias → oficina → marcas → retirada na loja → newsletter
+ *
+ * Nenhuma seção inventa dado comercial: cada uma só aparece quando existe
+ * conteúdo real vindo da API/Prisma.
+ */
 export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pecas, categorias, categoriasVitrine }: any) {
   const [favoritos, setFavoritos] = useState<Set<string>>(new Set());
   const [cliente, setCliente] = useState<any>(null);
 
-  // FASE 15-H.1: Novas seções dinâmicas
+  // FASE 15-H.1: seções dinâmicas
   const [maisVendidos, setMaisVendidos] = useState<any[]>([]);
   const [recomendados, setRecomendados] = useState<any[]>([]);
   const [vistos, setVistos] = useState<any[]>([]);
@@ -28,10 +38,8 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
     const d = getClienteVitrine();
     if (d) {
       setCliente(d);
-      // Carregar favoritos
       fetch('/api/vitrine/favoritos', { headers: { Authorization: `Bearer ${d.token}` } })
-        .then(r => r.json()).then(data => setFavoritos(new Set(data.map((f: any) => f.pecaId))));
-      // Carregar produtos vistos pelo cliente (com Bearer token do JWT)
+        .then(r => r.json()).then(data => setFavoritos(new Set((Array.isArray(data) ? data : []).map((f: any) => f.pecaId))));
       fetch('/api/vitrine/historico', { headers: { Authorization: `Bearer ${d.token}` } })
         .then(r => r.json()).then(data => setVistos(data.produtos || []));
     }
@@ -39,13 +47,11 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
 
   useEffect(() => {
     fetch('/api/vitrine/mais-vendidos').then(r => r.json()).then(d => setMaisVendidos(d.produtos || []));
-    // Recomendados baseados nos destaques
     if (destaques.length > 0) {
       fetch(`/api/vitrine/recomendados?pecaId=${destaques[0].id}`).then(r => r.json()).then(d => setRecomendados(d.produtos || []));
     }
   }, [destaques]);
 
-  // Recém adicionados = últimos 8 da lista principal
   useEffect(() => {
     setRecentes(pecas.slice(-8).reverse());
   }, [pecas]);
@@ -63,7 +69,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
     });
   }
 
-  // Item 1: menu/categorias 100% data-driven. `categoriasVitrine` vem do endpoint
+  // Menu/categorias 100% data-driven. `categoriasVitrine` vem do endpoint
   // /api/vitrine/categorias, que já filtra SÓ categorias com produtos visíveis
   // (ativo && quantidadeLoja>0 && precoVenda>0) e ordena CAPACETES→CAPAS→ACESSÓRIOS→A-Z.
   // Fallback (defensivo): deriva do payload de peças caso a prop venha vazia.
@@ -71,203 +77,243 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
     ? categoriasVitrine
     : categorias.filter((c: any) => pecas.some((p: any) => p.categoria.slug === c.slug));
 
+  // Atalhos rápidos: as 4 primeiras categorias reais (nunca slugs fixos).
+  const atalhos = catsMenu.slice(0, 4);
+
+  const contarCategoria = (slug: string) => {
+    const c = catsMenu.find((x: any) => x.slug === slug);
+    return c?.totalProdutos ?? pecas.filter((p: any) => p.categoria.slug === slug).length;
+  };
+
+  /**
+   * Vitrine de produtos. `forma` é o RITMO da home, não uma variação de preço:
+   *   • carrossel → trilho que continua trilho no desktop (pneus, mais vendidos);
+   *   • grade     → grade completa (usada uma vez só, para não repetir a mesma
+   *                 parede de cards em toda a página).
+   * A lógica do card é sempre a mesma (preço público, estoque da loja, favoritos).
+   */
+  const grade = (lista: any[], forma: 'carrossel' | 'grade' = 'carrossel') => (
+    <div className={forma === 'grade' ? 'mv-grid' : 'mv-carrossel'}>
+      {lista.map((p: any) => (
+        <CardProdutoPremium key={p.id} p={p} onFavorito={cliente ? toggleFavorito : undefined} favorited={favoritos.has(p.id)} />
+      ))}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-[#F3F6FB]">
-      {/* HEADER PREMIUM */}
-      <header className="bg-[#0D1117] text-white sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16 gap-4">
-            <a href="/vitrine" className="flex items-center gap-2.5 flex-shrink-0">
-              <LogoOficina className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="font-extrabold text-white text-sm" />
-              <div className="hidden sm:block">
-                <p className="font-extrabold text-sm leading-tight">Marquinho</p>
-                <p className="text-[10px] text-slate-400 leading-tight">Moto Peças</p>
-              </div>
-            </a>
-
-            <div className="flex-1 max-w-xl">
-              <BuscaPremium />
-            </div>
-
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <a href={cliente ? '/vitrine/perfil' : '/vitrine/login'} className="flex flex-col items-center justify-center px-2.5 py-1 rounded-md hover:bg-white/5 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                <span className="text-[10px] text-slate-400 mt-0.5">{cliente ? 'Perfil' : 'Entrar'}</span>
-              </a>
-              <a href="/vitrine/favoritos" className="flex flex-col items-center justify-center px-2.5 py-1 rounded-md hover:bg-white/5 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-                <span className="text-[10px] text-slate-400 mt-0.5">Favoritos</span>
-              </a>
-              <a href="/vitrine/carrinho" className="flex flex-col items-center justify-center px-2.5 py-1 rounded-md hover:bg-white/5 transition-colors relative">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17"/></svg>
-                <span className="text-[10px] text-slate-400 mt-0.5">Carrinho</span>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Menu Categorias — AJUSTE 3: sem corte (slice) — TODAS as categorias com produto
-            visível aparecem (o container rola horizontalmente se necessário). */}
-        <div className="bg-brand-600">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center h-9 overflow-x-auto gap-0.5">
-              {catsMenu.map((c: any) => (
-                <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`}
-                  className="px-3 py-1.5 text-[11px] font-semibold text-white/90 hover:text-white hover:bg-brand-700 rounded-md transition-colors whitespace-nowrap">
-                  {c.nome}
-                </a>
-              ))}
-              <a href="/vitrine/marcas" className="px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:text-white hover:bg-brand-700 rounded-md transition-colors whitespace-nowrap ml-2 border-l border-brand-500/30">
-                Marcas
-              </a>
-              <a href="/vitrine/promocoes" className="px-3 py-1.5 text-[11px] font-extrabold text-yellow-300 hover:text-yellow-200 bg-brand-700/50 rounded-md transition-colors whitespace-nowrap ml-1">
-                🔥 Promoções
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* BANNER CARROSSEL — data-driven (BannerCarrossel busca os banners ativos do /api/vitrine/banners) */}
+    <>
+      {/* CAPA — carrossel data-driven da DONA (ou hero próprio se não houver banner) */}
       <BannerCarrossel />
 
-      {/* ===== CONTEÚDO PRINCIPAL ===== */}
-      <div className="max-w-7xl mx-auto px-4 py-10 space-y-14">
-
-        {/* Destaques */}
-        {destaques.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-extrabold text-slate-800">⭐ Produtos em Destaque</h2>
-              <a href="/vitrine/catalogo" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver todos →</a>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {destaques.map((p: any) => (
-                <CardProdutoPremium key={p.id} p={p} onFavorito={toggleFavorito} favorited={favoritos.has(p.id)} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Promoções com countdown */}
-        <section>
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-xl font-extrabold text-slate-800">🔥 Promoções</h2>
-            <a href="/vitrine/promocoes" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver todas →</a>
-          </div>
-          <PromocoesVitrine />
-        </section>
-
-        {/* BANNER PNEUS */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl p-8 md:p-10 text-white flex items-center gap-8">
-          <div className="flex-1">
-            <span className="inline-block bg-brand-600 text-white text-[11px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-3">Pneus para sua moto</span>
-            <h2 className="text-2xl font-extrabold mb-2">Troque seus pneus com quem entende</h2>
-            <p className="text-sm text-white/60 mb-4 max-w-md">Pneus Pirelli, Metzeler, Levorin e mais. Consultoria gratuita pelo WhatsApp.</p>
-            <a href="/vitrine/catalogo?categoria=rodas-e-pneus" className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-bold transition-colors">Ver Pneus</a>
-          </div>
-          <div className="hidden md:flex w-32 h-32 rounded-full border-4 border-white/10 items-center justify-center flex-shrink-0">
-            <svg className="w-16 h-16 text-brand-500/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" strokeWidth={1}/><circle cx="12" cy="12" r="4" strokeWidth={1}/></svg>
+      {/* ATALHOS RÁPIDOS — navegação de 1 toque para as principais categorias */}
+      {atalhos.length > 0 && (
+        <div className="mv-container -mt-5 md:-mt-7 relative z-10">
+          <div className="mv-quick">
+            {atalhos.map((c: any) => (
+              <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`} className="mv-quick-item">
+                <span className="w-9 h-9 rounded-lg bg-[var(--mv-brand-soft)] text-[var(--mv-brand)] flex items-center justify-center flex-shrink-0 font-extrabold text-sm overflow-hidden">
+                  {c.icone
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={c.icone} alt="" className="w-full h-full object-cover" />
+                    : String(c.nome).charAt(0)}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-[var(--mv-text)] truncate">{c.nome}</span>
+                  <span className="block text-[10px] text-[var(--mv-text-3)]">{contarCategoria(c.slug)} produtos</span>
+                </span>
+              </a>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Ofertas */}
-        {ofertas.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-extrabold text-slate-800">🏷️ Ofertas da Semana</h2>
-                <span className="bg-red-500 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">{ofertas.length} itens</span>
+      <div className="mv-container">
+
+        {/* DESTAQUES — bento: o principal ganha escala, os outros acompanham.
+            É o que quebra a leitura "grade de cards idênticos". */}
+        {destaques.length > 0 && (
+          <section className="mv-section">
+            <div className="mv-sec-head">
+              <div>
+                <h2 className="mv-sec-title">Produtos em destaque</h2>
+                <p className="mv-sec-sub">Selecionados pela loja</p>
               </div>
-              <a href="/vitrine/catalogo" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver todas →</a>
+              <a href="/vitrine/catalogo" className="mv-sec-link">
+                Ver catálogo
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+              </a>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {ofertas.map((p: any) => (
-                <CardProdutoPremium key={p.id} p={p} onFavorito={toggleFavorito} favorited={favoritos.has(p.id)} />
+            <div className="mv-bento">
+              {destaques.slice(0, 5).map((p: any, i: number) => (
+                <CardProdutoPremium key={p.id} p={p} feature={i === 0}
+                  onFavorito={cliente ? toggleFavorito : undefined} favorited={favoritos.has(p.id)} />
               ))}
             </div>
           </section>
         )}
 
-        {/* FASE 15-H.1: Mais Vendidos */}
-        {maisVendidos.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-extrabold text-slate-800">📈 Mais Vendidos</h2>
-              <a href="/vitrine/catalogo" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver catálogo →</a>
+        {/* PROMOÇÕES */}
+        <section className="mv-section">
+          <div className="mv-sec-head">
+            <div>
+              <h2 className="mv-sec-title">Promoções</h2>
+              <p className="mv-sec-sub">Por tempo limitado</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {maisVendidos.map((p: any) => (
-                <CardProdutoPremium key={p.id} p={p} onFavorito={toggleFavorito} favorited={favoritos.has(p.id)} />
-              ))}
-            </div>
-          </section>
+            <a href="/vitrine/promocoes" className="mv-sec-link">
+              Ver todas
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+            </a>
+          </div>
+          <PromocoesBlocos modo="compacto" />
+        </section>
+
+        {/* FAIXA PNEUS */}
+        <div className="mv-strip mv-strip-ink mv-section">
+          <div className="flex-1 min-w-0">
+            <span className="mv-eyebrow">Rodas e pneus</span>
+            <h2 className="text-xl md:text-2xl font-extrabold mt-3 leading-tight">Pneus para sua moto</h2>
+            <p className="text-sm text-[var(--mv-text-on-dark-2)] mt-2 max-w-md leading-relaxed">
+              Trabalhamos com as principais marcas. Não sabe qual é o seu? Fale com a loja e a gente confirma a medida.
+            </p>
+            <a href="/vitrine/busca?q=pneu" className="mv-btn mv-btn-primary mt-5">Ver pneus</a>
+          </div>
+          <span className="hidden md:flex w-28 h-28 lg:w-32 lg:h-32 rounded-full border border-white/10 items-center justify-center flex-shrink-0">
+            <svg className="w-14 h-14 text-white/25" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" strokeWidth={1} />
+              <circle cx="12" cy="12" r="3.5" strokeWidth={1} />
+              <path strokeLinecap="round" strokeWidth={1} d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+            </svg>
+          </span>
+        </div>
+
+        {/* RITMO DA HOME
+            As vitrines eram cinco seções idênticas de grade 4 colunas, uma atrás
+            da outra. Agora alternam TRÊS formas:
+              • faixa branca (.mv-band) com dois trilhos   → Ofertas + Mais vendidos
+              • grade completa                             → Recomendados (uma só vez)
+              • faixa branca com dois trilhos              → Vistos + Chegaram agora
+            Só a composição mudou: cada item continua vindo da mesma API e usando
+            a mesma regra de preço/estoque do card. */}
+
+        {/* FAIXA 1 — OFERTAS + MAIS VENDIDOS */}
+        {(ofertas.length > 0 || maisVendidos.length > 0) && (
+          <div className="mv-band">
+            {ofertas.length > 0 && (
+              <SecaoVitrine>
+                <div className="mv-sec-head">
+                  <div>
+                    <h2 className="mv-sec-title">Ofertas</h2>
+                    <p className="mv-sec-sub">{ofertas.length} {ofertas.length === 1 ? 'item com desconto' : 'itens com desconto'}</p>
+                  </div>
+                  <a href="/vitrine/catalogo?promocao=1" className="mv-sec-link">
+                    Ver todas
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+                  </a>
+                </div>
+                {grade(ofertas)}
+              </SecaoVitrine>
+            )}
+
+            {maisVendidos.length > 0 && (
+              <SecaoVitrine>
+                <div className="mv-sec-head">
+                  <div>
+                    <h2 className="mv-sec-title">Mais vendidos</h2>
+                    <p className="mv-sec-sub">O que sai mais na loja</p>
+                  </div>
+                  <a href="/vitrine/catalogo?ordem=mais_vendidos" className="mv-sec-link">
+                    Ver catálogo
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+                  </a>
+                </div>
+                {grade(maisVendidos)}
+              </SecaoVitrine>
+            )}
+          </div>
         )}
 
-        {/* FASE 15-H.1: Recomendados */}
+        {/* RECOMENDADOS — a única GRADE COMPLETA da home. É o contraponto de
+            largura às faixas de trilho, e por isso não se repete. (Só aparece
+            para quem está logado e tem histórico.) */}
         {recomendados.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-extrabold text-slate-800">🎯 Recomendados para Você</h2>
-              <a href="/vitrine/catalogo" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver mais →</a>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {recomendados.map((p: any) => (
-                <CardProdutoPremium key={p.id} p={p} onFavorito={toggleFavorito} favorited={favoritos.has(p.id)} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* FASE 15-H.1: Produtos Vistos Recentemente */}
-        {vistos.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-extrabold text-slate-800">👁️ Vistos Recentemente</h2>
-              <a href="/vitrine/perfil" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Meu perfil →</a>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {vistos.map((p: any) => (
-                <CardProdutoPremium key={p.id} p={p} onFavorito={toggleFavorito} favorited={favoritos.has(p.id)} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* FASE 15-H.1: Recém Adicionados */}
-        {recentes.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-extrabold text-slate-800">🆕 Novos Produtos</h2>
-                <span className="bg-blue-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">Novo</span>
+          <SecaoVitrine>
+            <div className="mv-sec-head">
+              <div>
+                <h2 className="mv-sec-title">Recomendados para você</h2>
+                <p className="mv-sec-sub">Com base nos seus interesses</p>
               </div>
-              <a href="/vitrine/catalogo?ordem=mais_recentes" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver todos →</a>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {recentes.map((p: any) => (
-                <CardProdutoPremium key={p.id} p={p} onFavorito={toggleFavorito} favorited={favoritos.has(p.id)} />
-              ))}
-            </div>
-          </section>
+            {grade(recomendados, 'grade')}
+          </SecaoVitrine>
         )}
 
-        {/* Categorias em Grid */}
+        {/* FAIXA 2 — O QUE É SEU: vistos recentemente + últimas peças cadastradas */}
+        {(vistos.length > 0 || recentes.length > 0) && (
+          <div className="mv-band">
+            {vistos.length > 0 && (
+              <SecaoVitrine>
+                <div className="mv-sec-head">
+                  <div>
+                    <h2 className="mv-sec-title">Vistos recentemente</h2>
+                    <p className="mv-sec-sub">Continue de onde parou</p>
+                  </div>
+                  <a href="/vitrine/perfil" className="mv-sec-link">
+                    Meu perfil
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+                  </a>
+                </div>
+                {grade(vistos)}
+              </SecaoVitrine>
+            )}
+
+            {recentes.length > 0 && (
+              <SecaoVitrine>
+                <div className="mv-sec-head">
+                  <div>
+                    <h2 className="mv-sec-title">Chegaram agora</h2>
+                    <p className="mv-sec-sub">Últimas peças cadastradas</p>
+                  </div>
+                  <a href="/vitrine/catalogo?ordem=mais_recentes" className="mv-sec-link">
+                    Ver todos
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+                  </a>
+                </div>
+                {grade(recentes)}
+              </SecaoVitrine>
+            )}
+          </div>
+        )}
+
+        {/* CATEGORIAS */}
         {catsMenu.length > 0 && (
-          <section>
-            <h2 className="text-xl font-extrabold text-slate-800 mb-5">📂 Categorias</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <section className="mv-section">
+            <div className="mv-sec-head">
+              <div>
+                <h2 className="mv-sec-title">Navegue por categoria</h2>
+                <p className="mv-sec-sub">Todas as categorias com peças disponíveis</p>
+              </div>
+            </div>
+            {/* Lista de diretório (e não outro mural de quadradinhos: os atalhos
+                logo abaixo do hero já usam esse desenho). */}
+            <div className="mv-cat-dir">
               {catsMenu.map((c: any) => {
-                // Contagem real via endpoint de categorias (independe do take:200 de /api/vitrine).
+                // Contagem real via endpoint de categorias (independe do take de /api/vitrine).
                 const count = c.totalProdutos ?? pecas.filter((p: any) => p.categoria.slug === c.slug).length;
                 return (
-                  <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`}
-                    className="bg-white rounded-xl border border-slate-200 p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all group">
-                    <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center mx-auto mb-2 group-hover:bg-brand-100 transition-colors">
-                      <span className="text-brand-600 text-lg font-extrabold">{c.nome.charAt(0)}</span>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-700 group-hover:text-brand-700 truncate">{c.nome}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{count} produtos</p>
+                  <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`} className="mv-cat-row">
+                    <span className="mv-cat-icon">
+                      {c.icone
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={c.icone} alt="" className="w-full h-full object-cover" />
+                        : String(c.nome).charAt(0)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-bold text-[var(--mv-text)] leading-tight truncate">{c.nome}</span>
+                      <span className="block text-[11px] text-[var(--mv-text-3)] mt-0.5">{count} {count === 1 ? 'produto' : 'produtos'}</span>
+                    </span>
+                    <svg className="w-4 h-4 flex-none text-[var(--mv-text-3)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </a>
                 );
               })}
@@ -275,56 +321,80 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
           </section>
         )}
 
-        {/* BANNER OFICINA */}
-        <div className="bg-gradient-to-r from-amber-700 to-amber-600 rounded-2xl p-8 md:p-10 text-white flex items-center gap-8">
-          <div className="flex-1">
-            <span className="inline-block bg-white/20 text-white text-[11px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-3">Oficina Especializada</span>
-            <h2 className="text-2xl font-extrabold mb-2">Manutenção especializada para sua moto</h2>
-            <p className="text-sm text-white/70 mb-4 max-w-md">Mecânicos experientes, peças originais e garantia de serviço.</p>
-          </div>
-          <div className="hidden md:flex w-32 h-32 rounded-full border-4 border-white/10 items-center justify-center flex-shrink-0">
-            <svg className="w-16 h-16 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        {/* FAIXA OFICINA */}
+        <div className="mv-strip mv-strip-gold mv-section">
+          <div className="flex-1 min-w-0">
+            <span className="mv-eyebrow" style={{ color: '#fff8ea', borderColor: 'rgba(255,255,255,0.25)' }}>Oficina</span>
+            <h2 className="text-xl md:text-2xl font-extrabold mt-3 leading-tight">Precisa de mão de obra também?</h2>
+            <p className="text-sm text-white/85 mt-2 max-w-md leading-relaxed">
+              A loja conta com oficina para instalação e manutenção. Fale com a gente e agende o serviço.
+            </p>
+            <a href={`https://wa.me/${DADOS_OFICINA.whatsapp}?text=${encodeURIComponent('Olá! Gostaria de agendar um serviço na oficina.')}`}
+              target="_blank" rel="noopener noreferrer"
+              className="mv-btn mt-5 bg-white text-[#7a4408] hover:bg-[#fff8ea]">
+              Falar com a oficina
+            </a>
           </div>
         </div>
 
-        {/* Marcas */}
-        <section>
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-xl font-extrabold text-slate-800">🏭 Marcas</h2>
-            <a href="/vitrine/marcas" className="text-sm text-brand-600 hover:text-brand-700 font-bold">Ver todas →</a>
+        {/* MARCAS */}
+        <section className="mv-section">
+          <div className="mv-sec-head">
+            <div>
+              <h2 className="mv-sec-title">Marcas</h2>
+              <p className="mv-sec-sub">Trabalhamos com as principais do mercado</p>
+            </div>
+            <a href="/vitrine/marcas" className="mv-sec-link">
+              Ver todas
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+            </a>
           </div>
-          <MarcasVitrine />
+          <MarcasGrade limite={6} />
         </section>
 
-        {/* RETIRE NA LOJA */}
-        <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-2xl p-10 text-center text-white">
-          <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/>
-            </svg>
+        {/* COMO FUNCIONA A RETIRADA — 3 passos, sem inventar política nova */}
+        <section className="mv-section">
+          <div className="mv-panel !p-6 md:!p-10">
+            <div className="mv-sec-head">
+              <div>
+                <h2 className="mv-sec-title">Como funciona</h2>
+                <p className="mv-sec-sub">Compra online, retirada na loja</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+              {[
+                { n: '1', t: 'Escolha as peças', d: 'Navegue pelo catálogo e monte seu pedido no carrinho.' },
+                { n: '2', t: 'Confirme o pedido', d: 'Informe quem vai retirar e escolha a forma de pagamento na retirada.' },
+                { n: '3', t: 'Retire na loja', d: 'A separação leva até 2 horas. Você recebe o código de retirada no perfil.' },
+              ].map(passo => (
+                <div key={passo.n} className="flex gap-4">
+                  <span className="w-10 h-10 rounded-full bg-[var(--mv-brand)] text-white font-extrabold flex items-center justify-center flex-shrink-0">{passo.n}</span>
+                  <span>
+                    <span className="block text-sm font-bold text-[var(--mv-text)]">{passo.t}</span>
+                    <span className="block text-xs text-[var(--mv-text-2)] mt-1 leading-relaxed">{passo.d}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-7 pt-6 border-t border-[var(--mv-line)] flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--mv-text-2)]">
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-[var(--mv-brand)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                {DADOS_OFICINA.endereco} — {DADOS_OFICINA.cidade}
+              </span>
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-[var(--mv-brand)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7v5l3 2" /></svg>
+                {DADOS_OFICINA.horario}
+              </span>
+              <a href="/vitrine/carrinho" className="mv-btn mv-btn-primary ml-auto">Montar meu pedido</a>
+            </div>
           </div>
-          <h2 className="text-2xl font-extrabold mb-2">Retire na Loja</h2>
-          <p className="text-sm text-white/70 mb-5 max-w-md mx-auto">
-            Monte seu orçamento online e retire suas peças na loja. Atendimento rápido pelo WhatsApp.
-          </p>
-          <a href="/vitrine/carrinho" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-brand-700 rounded-lg text-sm font-extrabold hover:bg-slate-50 transition-colors shadow-lg">
-            Montar Orçamento
-          </a>
+        </section>
+
+        {/* NEWSLETTER */}
+        <div className="mv-section">
+          <NewsletterVitrine />
         </div>
       </div>
-
-      {/* NEWSLETTER */}
-      <div className="max-w-7xl mx-auto px-4 pb-10">
-        <NewsletterVitrine />
-      </div>
-
-      {/* FOOTER PREMIUM */}
-      <RodapePremium />
-
-      {/* WHATSAPP FIXO */}
-      <a href="https://wa.me/558198143879" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/40 transition-all hover:scale-110 z-50">
-        <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
-      </a>
-    </div>
+    </>
   );
 }

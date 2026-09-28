@@ -23,29 +23,47 @@ function precoExibicao(p: Produto): number {
   return Number(p.precoVenda) || 0;
 }
 
+/**
+ * Card de produto da vitrine.
+ *
+ * Toda a regra comercial permanece idêntica: preço público (precoVitrine >
+ * precoOferta > precoVenda), disponibilidade pelo estoque da LOJA
+ * (quantidadeLoja — o estoque central nunca é exibido), limite de quantidade
+ * ao adicionar, favoritos e comparação.
+ *
+ * O que muda é a apresentação: hierarquia de preço mais forte, marca e
+ * atributo legíveis, selos com cor por significado e dois caminhos de compra
+ * (carrinho / comprar) que caibam até em 2 colunas no celular.
+ */
 export default function CardProdutoPremium({
-  p, onFavorito, favorited, onCarrinho, compact, onComparar, comparado
+  p, onFavorito, favorited, onCarrinho, compact, onComparar, comparado, feature
 }: {
   p: Produto; onFavorito?: (id: string) => void; favorited?: boolean; onCarrinho?: (p: Produto) => void; compact?: boolean;
   onComparar?: (id: string) => void; comparado?: boolean;
+  /** Variante para o painel principal do bento da Home (mesma lógica, escala maior). */
+  feature?: boolean;
 }) {
   const router = useRouter();
   const { adicionar } = useCarrinhoVitrine();
   const [imgError, setImgError] = useState(false);
-  const [hoverImg, setHoverImg] = useState(false);
   const [adicionado, setAdicionado] = useState(false);
   const [erro, setErro] = useState('');
   const precoBase = Number(p.precoVenda);
-  const temOverride = p.precoVitrine != null && Number(p.precoVitrine) > 0;
-  const oferta = p.oferta && p.precoOferta && Number(p.precoOferta) < precoBase && !temOverride;
-  const economia = oferta ? precoBase - Number(p.precoOferta) : 0;
-  const desconto = oferta ? Math.round((economia / precoBase) * 100) : 0;
+  const precoAtual = precoExibicao(p);
+  // O desconto do card segue a MESMA regra da página do produto: aparece sempre
+  // que o preço público for menor que o de estoque — tanto na oferta normal
+  // quanto no preço especial cadastrado pela DONA (precoVitrine). Antes o card
+  // só considerava a oferta e ficava sem selo justamente nos itens com preço
+  // especial, enquanto a página do produto mostrava o desconto.
+  const temDesconto = precoAtual > 0 && precoAtual < precoBase;
+  const economia = temDesconto ? precoBase - precoAtual : 0;
+  const desconto = temDesconto ? Math.round((economia / precoBase) * 100) : 0;
   // Disponibilidade baseada no estoque da LOJA (quantidadeLoja). Nunca expor o estoque central.
   const qtdLoja = p.quantidadeLoja ?? 0;
   const disponivel = qtdLoja > 0;
   const ultimasUnidades = qtdLoja > 0 && qtdLoja <= 5;
   const novo = p.createdAt ? (new Date().getTime() - new Date(p.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 : false;
-  const precoAtual = precoExibicao(p);
+  const atributo = rotuloAtributosAcessorio(p);
 
   // AJUSTE 7: adicionar ao carrinho respeitando o estoque da LOJA; COMPRAR adiciona e vai ao carrinho.
   function adicionarAoCarrinho(e?: React.MouseEvent) {
@@ -81,79 +99,118 @@ export default function CardProdutoPremium({
   }
 
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-xl transition-all duration-200 group flex flex-col ${compact ? '' : ''}`}>
+    <div className={`group flex flex-col bg-[var(--mv-surface)] border border-[var(--mv-line)] rounded-2xl overflow-hidden transition-all duration-200 hover:border-[var(--mv-brand-line)] hover:shadow-[var(--mv-sh-md)] hover:-translate-y-0.5 ${feature ? 'mv-feature h-full' : ''}`}>
+
       {/* Imagem */}
-      <a href={`/vitrine/produto/${p.id}`} className="relative aspect-square bg-slate-50 rounded-t-xl overflow-hidden flex items-center justify-center"
-        onMouseEnter={() => setHoverImg(true)} onMouseLeave={() => setHoverImg(false)}>
+      <a href={`/vitrine/produto/${p.id}`} className={`relative block bg-[var(--mv-surface-2)] overflow-hidden ${feature ? 'mv-feature-img' : 'aspect-square'}`}>
         {!imgError && p.imagemUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={p.imagemUrl} alt={p.nome}
-            className={`w-full h-full object-cover transition-all duration-500 ${hoverImg ? 'scale-110' : 'group-hover:scale-105'}`}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"
             onError={() => setImgError(true)} loading="lazy" />
         ) : (
-          <svg className="w-12 h-12 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          <span className="w-full h-full flex items-center justify-center">
+            <svg className="w-11 h-11 text-[var(--mv-line-strong)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </span>
         )}
-        {/* Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {p.destaque && <span className="px-2 py-0.5 bg-brand-600 text-white text-[9px] font-extrabold rounded-full shadow-sm">Destaque</span>}
-          {oferta && <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">{desconto}% OFF</span>}
-          {novo && !oferta && !p.destaque && <span className="px-2 py-0.5 bg-blue-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">Novo</span>}
-          {!disponivel && <span className="px-2 py-0.5 bg-slate-700 text-white text-[9px] font-bold rounded-full shadow-sm">Indisponível</span>}
-          {ultimasUnidades && disponivel && <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-bold rounded-full shadow-sm">Últimas unidades</span>}
-        </div>
-        {/* Botões ação */}
-        <div className="absolute top-2 right-2 flex flex-col gap-1">
+
+        {/* Selos — um por significado, no máximo três visíveis */}
+        <span className="absolute top-2 left-2 flex flex-col items-start gap-1">
+          {!disponivel && <span className="mv-badge mv-badge-ink">Indisponível</span>}
+          {disponivel && temDesconto && <span className="mv-badge mv-badge-alert">{desconto}% OFF</span>}
+          {disponivel && !temDesconto && p.destaque && <span className="mv-badge mv-badge-gold">Destaque</span>}
+          {disponivel && !temDesconto && !p.destaque && novo && <span className="mv-badge mv-badge-brand">Novo</span>}
+          {disponivel && ultimasUnidades && !temDesconto && <span className="mv-badge mv-badge-ink">Últimas un.</span>}
+        </span>
+
+        {/* Ações sobre a imagem */}
+        <span className="absolute top-2 right-2 flex flex-col gap-1">
           {onFavorito && (
-            <button onClick={(e) => { e.preventDefault(); onFavorito(p.id); }}
-              className="w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow-sm flex items-center justify-center transition-all hover:scale-110">
-              <svg className={`w-4 h-4 ${favorited ? 'text-red-500 fill-red-500' : 'text-slate-400'}`} fill={favorited ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+            <button
+              onClick={(e) => { e.preventDefault(); onFavorito(p.id); }}
+              aria-label={favorited ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
+              className="w-8 h-8 rounded-full bg-white/95 backdrop-blur-sm border border-[var(--mv-line)] flex items-center justify-center transition-all hover:scale-110 shadow-[var(--mv-sh-xs)]">
+              <svg className={`w-4 h-4 ${favorited ? 'text-[#d92d20]' : 'text-[var(--mv-text-3)]'}`}
+                fill={favorited ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
             </button>
           )}
           {onComparar && (
-            <button onClick={(e) => { e.preventDefault(); onComparar(p.id); }}
-              className={`w-8 h-8 rounded-full shadow-sm flex items-center justify-center transition-all hover:scale-110 ${comparado ? 'bg-brand-600 text-white' : 'bg-white/90 hover:bg-white text-slate-400'}`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <button
+              onClick={(e) => { e.preventDefault(); onComparar(p.id); }}
+              aria-label={comparado ? 'Remover da comparação' : 'Comparar produto'}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all hover:scale-110 shadow-[var(--mv-sh-xs)] ${
+                comparado
+                  ? 'bg-[var(--mv-brand)] border-[var(--mv-brand)] text-white'
+                  : 'bg-white/95 backdrop-blur-sm border-[var(--mv-line)] text-[var(--mv-text-3)]'
+              }`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
             </button>
           )}
-        </div>
+        </span>
       </a>
 
-      {/* Info */}
-      <div className={`p-3 flex-1 flex flex-col ${compact ? 'gap-1' : 'gap-1.5'}`}>
-        {p.marca && <p className="text-[9px] text-brand-600 font-bold uppercase tracking-wider">{p.marca}</p>}
-        <a href={`/vitrine/produto/${p.id}`} className="text-xs font-semibold text-slate-700 line-clamp-2 leading-snug hover:text-brand-600 transition-colors">{p.nome}</a>
-        {!compact && <p className="text-[9px] text-slate-400 truncate">{p.categoria.nome}{rotuloAtributosAcessorio(p) ? ` · ${rotuloAtributosAcessorio(p)}` : ''}{p.compatibilidade ? ` · ${p.compatibilidade}` : ''}</p>}
+      {/* Conteúdo */}
+      <div className={`flex-1 flex flex-col p-3 ${compact ? 'gap-1' : 'gap-1.5'}`}>
+        {p.marca && (
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--mv-brand)] truncate">{p.marca}</p>
+        )}
 
-        {/* Disponibilidade (sem expor número do estoque central) */}
-        {!compact && disponivel && <p className="text-[9px] text-emerald-600 font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>{ultimasUnidades ? 'Últimas unidades' : 'Em estoque'}</p>}
+        <a href={`/vitrine/produto/${p.id}`}
+          className={`font-semibold text-[var(--mv-text)] leading-snug line-clamp-2 hover:text-[var(--mv-brand)] transition-colors ${feature ? 'mv-feature-nome text-sm' : 'text-[13px]'}`}>
+          {p.nome}
+        </a>
 
-        <div className="mt-auto pt-1">
+        {!compact && (
+          <p className="text-[11px] text-[var(--mv-text-3)] truncate">
+            {p.categoria.nome}{atributo ? ` · ${atributo}` : ''}{p.compatibilidade ? ` · ${p.compatibilidade}` : ''}
+          </p>
+        )}
+
+        {!compact && disponivel && (
+          <p className="text-[11px] font-semibold flex items-center gap-1.5 text-[#0a6b3d]">
+            <span className={`w-1.5 h-1.5 rounded-full ${ultimasUnidades ? 'bg-[#e8991a]' : 'bg-[#0f9d58]'}`} />
+            {ultimasUnidades ? 'Últimas unidades' : 'Em estoque'}
+          </p>
+        )}
+
+        {/* Preço — empurrado para o rodapé do card para alinhar a grade inteira */}
+        <div className="mt-auto pt-2">
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-sm font-extrabold text-slate-800">{fm(precoAtual)}</span>
-            {(oferta || temOverride) && <span className="text-[10px] text-slate-400 line-through">{fm(precoBase)}</span>}
+            <span className={`mv-price ${feature ? 'mv-feature-preco' : ''}`}>{fm(precoAtual)}</span>
+            {temDesconto && <span className="mv-price-old">{fm(precoBase)}</span>}
           </div>
         </div>
 
-        {erro && <p className="text-[10px] text-red-600 font-medium mt-1">{erro}</p>}
+        {erro && <p className="text-[11px] text-[#d92d20] font-medium">{erro}</p>}
 
-        {/* AJUSTE 7: botões [ADICIONAR AO CARRINHO] e [COMPRAR] */}
-        {disponivel && (
-          <div className="flex gap-1.5 mt-2">
-            <button onClick={adicionarAoCarrinho}
-              className={`flex-1 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-wide transition-all border ${
-                adicionado ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-brand-600 text-brand-700 hover:bg-brand-50'
-              }`}>
-              {adicionado ? '✓ Adicionado!' : 'Adicionar ao Carrinho'}
+        {/* Dois caminhos de compra */}
+        {disponivel ? (
+          <div className="flex gap-1.5 mt-1">
+            <button onClick={adicionarAoCarrinho} aria-label="Adicionar ao carrinho"
+              className={`mv-btn mv-btn-ghost !px-3 flex-shrink-0 ${adicionado ? 'mv-btn-added' : ''}`}>
+              {adicionado ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">{adicionado ? 'Adicionado' : 'Carrinho'}</span>
             </button>
-            <button onClick={comprar}
-              className="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-[10px] font-extrabold uppercase tracking-wide transition-colors shadow-md shadow-brand-600/20">
+            <button onClick={comprar} className="mv-btn mv-btn-primary flex-1 min-w-0">
               Comprar
             </button>
           </div>
-        )}
-        {!disponivel && (
-          <p className="mt-2 text-[10px] text-slate-400 text-center py-2">Indisponível no momento</p>
+        ) : (
+          <button disabled className="mv-btn mv-btn-ghost w-full mt-1">Indisponível</button>
         )}
       </div>
     </div>

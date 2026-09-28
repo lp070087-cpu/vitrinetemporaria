@@ -10,7 +10,7 @@ import FormasPagamento from '@/components/vitrine/FormasPagamento';
 import FretePrazo from '@/components/vitrine/FretePrazo';
 import CompartilharProduto from '@/components/vitrine/CompartilharProduto';
 import RegistrarVisualizacao from '@/components/vitrine/RegistrarVisualizacao';
-import LogoOficina from '@/components/LogoOficina';
+import AbasProduto from '@/components/vitrine/AbasProduto';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -44,10 +44,13 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
 
   if (!peca || !visivel) {
     return (
-      <div className="min-h-screen bg-[#F3F6FB] flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-800">Produto não encontrado</h1>
-          <a href="/vitrine" className="text-brand-600 text-sm mt-2 inline-block">← Voltar para a vitrine</a>
+      <div className="mv-container mv-section text-center">
+        <div className="mv-empty !py-20">
+          <h1 className="text-xl font-extrabold text-[var(--mv-text)]">Produto não encontrado</h1>
+          <p className="text-sm text-[var(--mv-text-2)] mt-2 mb-5">
+            Esta peça pode ter saído de linha ou estar sem estoque na loja.
+          </p>
+          <a href="/vitrine/catalogo" className="mv-btn mv-btn-primary">Ver o catálogo</a>
         </div>
       </div>
     );
@@ -83,227 +86,262 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   // Garantia padrão
   const garantia = '3 meses de garantia contra defeitos de fabricação';
 
+  const atributos = rotuloAtributosAcessorio(peca);
+
+  /* ------------------------------------------------------------------ */
+  /* CONTEÚDO DAS ABAS                                                   */
+  /* ------------------------------------------------------------------ */
+
+  const abaDescricao = (
+    <div className="mv-panel">
+      {peca.descricao ? (
+        <p className="text-sm text-[var(--mv-text-2)] leading-relaxed whitespace-pre-line">{peca.descricao}</p>
+      ) : (
+        // AJUSTE 8: sem texto neutro inventando specs.
+        <p className="text-sm text-[var(--mv-text-2)] leading-relaxed">
+          Consulte a compatibilidade abaixo e a disponibilidade para a sua moto.
+        </p>
+      )}
+    </div>
+  );
+
+  const abaEspecificacoes = (
+    <div className="mv-panel">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-0">
+        <div className="mv-kv"><span>Marca</span><span>{peca.marca || '—'}</span></div>
+        <div className="mv-kv"><span>Categoria</span><span>{peca.categoria.nome}</span></div>
+        {atributos && (
+          <div className="mv-kv">
+            <span>{peca.genero ? 'Gênero / Tamanho' : 'Tamanho'}</span>
+            <span>{atributos}</span>
+          </div>
+        )}
+        {/* COR DO CAPACETE — só exibe a linha quando há cor cadastrada.
+            null/vazio → nenhuma linha (nunca exibe "Cor:" vazia). */}
+        {peca.cor && peca.cor.trim() ? (
+          <div className="mv-kv"><span>Cor</span><span>{peca.cor.trim()}</span></div>
+        ) : null}
+        <div className="mv-kv"><span>Garantia</span><span>{garantia}</span></div>
+        <div className="mv-kv">
+          <span>Disponibilidade</span>
+          <span className={disponivel ? 'text-[var(--mv-ok)]' : 'text-[var(--mv-alert)]'}>
+            {disponivel ? 'Em estoque (retirada na loja)' : 'Indisponível'}
+          </span>
+        </div>
+      </div>
+
+      {peca.documentos.length > 0 && (
+        <div className="mt-6 pt-5 border-t border-[var(--mv-line)]">
+          <p className="mv-label">Documentos</p>
+          <div className="flex flex-wrap gap-2">
+            {peca.documentos.map(d => (
+              <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer"
+                className="mv-btn mv-btn-ghost !text-xs">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 3v5h5M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" />
+                </svg>
+                {d.nome}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const abaCompatibilidade = (
+    <div className="mv-panel">
+      {peca.compatibilidades?.length > 0 ? (
+        <>
+          <p className="text-xs text-[var(--mv-text-2)] mb-4">
+            Esta peça foi cadastrada como compatível com os modelos abaixo.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {peca.compatibilidades.map((c, i) => (
+              <span key={i} className="mv-chip !cursor-default">
+                <svg className="w-3.5 h-3.5 text-[var(--mv-brand)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {c.marca} {c.modelo}
+                {c.anoInicial && ` ${c.anoInicial}`}{c.anoFinal && c.anoFinal !== c.anoInicial ? `–${c.anoFinal}` : ''}
+                {c.motor && ` · ${c.motor}`}{c.versao && ` · ${c.versao}`}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-[var(--mv-text-3)] mt-5">
+            Na dúvida, confirme o modelo e o ano com a loja antes de comprar.
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-[var(--mv-text-2)]">
+          Compatibilidade não informada no cadastro. Fale com a loja pelo WhatsApp que a gente confirma para a sua moto.
+        </p>
+      )}
+    </div>
+  );
+
+  const abaEntrega = (
+    <div className="flex flex-col gap-4">
+      <div className="mv-panel">
+        <FretePrazo pecaId={peca.id} />
+      </div>
+      <div className="mv-panel">
+        <h2 className="mv-sec-title !text-base !pl-4 mb-4">Formas de pagamento</h2>
+        <FormasPagamento preco={precoAtual} />
+      </div>
+    </div>
+  );
+
+  const abaAvaliacoes = (
+    <div className="flex flex-col gap-4">
+      <div className="mv-panel">
+        <h2 className="mv-sec-title !text-base !pl-4 mb-4">Avaliações</h2>
+        <AvaliacoesVitrine pecaId={peca.id} />
+      </div>
+      <div className="mv-panel">
+        <h2 className="mv-sec-title !text-base !pl-4 mb-4">Perguntas e respostas</h2>
+        <PerguntasProduto pecaId={peca.id} />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-[#F3F6FB]">
+    <div className="mv-container mv-section">
       {/* Registra visualização/histórico (componente invisível) */}
       <RegistrarVisualizacao pecaId={peca.id} />
-      {/* Header */}
-      <header className="bg-[#0D1117] text-white">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/vitrine" className="flex items-center gap-2.5">
-            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
-            <span className="hidden sm:inline font-extrabold text-sm">Marquinho</span>
-          </a>
-          <div className="flex items-center gap-3 text-xs">
-            <a href="/vitrine/login" className="text-slate-400 hover:text-white">Entrar</a>
-            <a href="/vitrine/carrinho" className="px-4 py-2 bg-brand-600 rounded-lg font-bold">Carrinho</a>
-          </div>
-        </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-slate-400 mb-6 flex-wrap">
-          <a href="/vitrine" className="hover:text-brand-600">Home</a>
-          <span>/</span>
-          <a href={`/vitrine/catalogo?categoria=${peca.categoria.slug}`} className="hover:text-brand-600">{peca.categoria.nome}</a>
-          <span>/</span>
-          <span className="text-slate-600 font-medium truncate">{peca.nome}</span>
+      {/* MIGALHAS */}
+      <nav className="mv-crumbs mb-5" aria-label="Você está aqui">
+        <a href="/vitrine">Início</a>
+        <span>/</span>
+        <a href={`/vitrine/catalogo?categoria=${peca.categoria.slug}`}>{peca.categoria.nome}</a>
+        <span>/</span>
+        <span className="text-[var(--mv-text-2)] font-medium truncate max-w-[42ch]">{peca.nome}</span>
+      </nav>
+
+      {/* PRATO PRINCIPAL */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+
+        <div className="lg:sticky lg:top-[calc(var(--mv-header-total)+20px)] lg:z-30">
+          <GaleriaPremium
+            imagens={peca.imagens.map(i => ({ id: i.id, url: i.url, tipo: i.tipo, cor: i.cor || null }))}
+            videos={peca.documentos.filter(d => d.tipo === 'VIDEO')}
+            nome={peca.nome}
+          />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          {/* Galeria */}
-          <div>
-            <GaleriaPremium
-              imagens={peca.imagens.map(i => ({ id: i.id, url: i.url, tipo: i.tipo, cor: i.cor || null }))}
-              videos={peca.documentos.filter(d => d.tipo === 'VIDEO')}
-              nome={peca.nome}
-            />
+        <div>
+          {peca.marca && (
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--mv-brand)] mb-2">{peca.marca}</p>
+          )}
+          <h1 className="text-2xl md:text-[1.75rem] font-extrabold text-[var(--mv-text)] tracking-tight leading-tight">
+            {peca.nome}
+          </h1>
+
+          <div className="mt-3 mb-5">
+            <CompartilharProduto nome={peca.nome} url={url} />
           </div>
 
-          {/* Detalhes + Compra */}
-          <div>
-            {peca.marca && <p className="text-xs text-brand-600 font-bold uppercase tracking-wider mb-2">{peca.marca}</p>}
-            <h1 className="text-2xl font-extrabold text-slate-800 mb-2">{peca.nome}</h1>
-            <div className="flex items-center gap-2 mb-4">
-              <CompartilharProduto nome={peca.nome} url={url} />
+          {/* PREÇO */}
+          <div className="mv-panel mb-5">
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <span className="text-3xl md:text-4xl font-extrabold text-[var(--mv-text)] tracking-tight">{fm(precoAtual)}</span>
+              {(temDesconto || temPrecoVitrineDiferente) && <span className="mv-price-old !text-base">{fm(precoBase)}</span>}
+              {temDesconto && <span className="mv-badge mv-badge-alert !text-xs !px-2.5 !py-1">-{desconto}%</span>}
             </div>
 
-            {/* Preço */}
-            <div className="flex items-baseline gap-3 mb-2">
-              <span className="text-3xl font-extrabold text-slate-800">{fm(precoAtual)}</span>
-              {(temDesconto || temPrecoVitrineDiferente) && (
-                <span className="text-lg text-slate-400 line-through">{fm(precoBase)}</span>
-              )}
-              {temDesconto && <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-extrabold">-{desconto}%</span>}
-            </div>
-            {temDesconto && <p className="text-sm text-emerald-600 font-semibold mb-1">Economize {fm(economia)}</p>}
+            {temDesconto && (
+              <p className="text-sm font-bold text-[var(--mv-ok)] mt-2">Você economiza {fm(economia)}</p>
+            )}
             {temPrecoVitrineDiferente && !temDesconto && (
-              <p className="text-xs text-brand-700 font-semibold mb-1">Preço especial da Vitrine (preço na loja: {fm(precoBase)})</p>
+              <p className="text-xs font-semibold text-[var(--mv-brand)] mt-2">
+                Preço especial da Vitrine (preço na loja: {fm(precoBase)})
+              </p>
             )}
+
             {/* Disponibilidade (sem expor estoque central) */}
-            <div className="flex items-center gap-2 mb-4">
-              {disponivel ? (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-xs text-emerald-700 font-medium">Disponível para retirada na loja</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                  <span className="text-xs text-red-700 font-medium">Indisponível no momento</span>
-                </>
-              )}
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--mv-line)]">
+              <span className={`w-2 h-2 rounded-full ${disponivel ? 'bg-[var(--mv-ok)]' : 'bg-[var(--mv-alert)]'}`} />
+              <span className={`text-xs font-semibold ${disponivel ? 'text-[var(--mv-ok)]' : 'text-[var(--mv-alert)]'}`}>
+                {disponivel ? 'Disponível para retirada na loja' : 'Indisponível no momento'}
+              </span>
             </div>
-
-            {/* Botão Comprar */}
-            <div className="mb-4">
-              <AdicionarAoCarrinho
-                peca={publicarPeca(peca)}
-                disponivel={disponivel}
-              />
-            </div>
-
-            {/* Dúvidas no WhatsApp */}
-            <a
-              href={duvidasWhatsApp}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs text-emerald-700 hover:text-emerald-800 font-semibold mb-6 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
-              Dúvidas? Fale com a loja no WhatsApp
-            </a>
-
-            {/* Compatibilidade */}
-            {peca.compatibilidades?.length > 0 && (
-              <div className="mb-6 p-4 bg-slate-50 rounded-xl">
-                <h3 className="text-xs font-bold text-slate-700 mb-2">🔧 Compatibilidade</h3>
-                <div className="space-y-1">
-                  {peca.compatibilidades.map((c, i) => (
-                    <p key={i} className="text-[11px] text-slate-500">
-                      {c.marca} {c.modelo} {c.anoInicial && `${c.anoInicial}`}{c.anoFinal && c.anoFinal !== c.anoInicial ? `-${c.anoFinal}` : ''}{c.motor && ` • ${c.motor}`}{c.versao && ` • ${c.versao}`}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Garantia */}
-            <p className="text-[11px] text-slate-400 flex items-center gap-1 mb-2">🛡️ {garantia}</p>
           </div>
+
+          {/* COMPRA — CTA em largura cheia da coluna: na página do produto o
+              caminho de compra tem de ser o elemento mais evidente depois do preço. */}
+          <div className="mb-4">
+            <AdicionarAoCarrinho peca={publicarPeca(peca)} disponivel={disponivel} className="mv-btn-block" />
+          </div>
+
+          {/* DÚVIDAS NO WHATSAPP */}
+          <a href={duvidasWhatsApp} target="_blank" rel="noopener noreferrer"
+            className="mv-btn mv-btn-ghost mv-btn-block mb-5 !text-[var(--mv-ok)] !border-[var(--mv-ok-soft)]">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347" /></svg>
+            Dúvidas? Fale com a loja no WhatsApp
+          </a>
+
+          {/* GARANTIA */}
+          <p className="text-[11px] text-[var(--mv-text-2)] flex items-start gap-2">
+            <svg className="w-4 h-4 text-[var(--mv-brand)] flex-none mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            {garantia}
+          </p>
         </div>
+      </div>
 
-        {/* ===== TABS DE INFORMAÇÕES ===== */}
-        <div className="space-y-4 mb-12">
+      {/* ABAS */}
+      <section className="mt-12">
+        <AbasProduto abas={[
+          { id: 'descricao', rotulo: 'Descrição', conteudo: abaDescricao },
+          { id: 'especificacoes', rotulo: 'Especificações', conteudo: abaEspecificacoes },
+          { id: 'compatibilidade', rotulo: 'Compatibilidade', conteudo: abaCompatibilidade },
+          { id: 'entrega', rotulo: 'Entrega e pagamento', conteudo: abaEntrega },
+          { id: 'avaliacoes', rotulo: 'Avaliações e perguntas', conteudo: abaAvaliacoes },
+        ]} />
+      </section>
 
-          {/* Descrição — AJUSTE 8: se vazia, texto neutro sem inventar specs */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-3">📋 Descrição</h2>
-            {peca.descricao ? (
-              <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{peca.descricao}</p>
-            ) : (
-              <p className="text-sm text-slate-500 leading-relaxed">Consulte compatibilidade e disponibilidade para sua moto.</p>
-            )}
-          </div>
-
-          {/* Especificações Técnicas */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-3">📐 Especificações</h2>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex justify-between py-1.5 border-b border-slate-50">
-                <span className="text-slate-400">Marca</span>
-                <span className="font-medium text-slate-700">{peca.marca || '—'}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-50">
-                <span className="text-slate-400">Categoria</span>
-                <span className="font-medium text-slate-700">{peca.categoria.nome}</span>
-              </div>
-              {rotuloAtributosAcessorio(peca) && (
-                <div className="flex justify-between py-1.5 border-b border-slate-50">
-                  <span className="text-slate-400">{peca.genero ? 'Gênero / Tamanho' : 'Tamanho'}</span>
-                  <span className="font-medium text-slate-700">{rotuloAtributosAcessorio(peca)}</span>
+      {/* RELACIONADOS + MESMA MARCA
+          Duas listas de grade completa em sequência davam à página do produto o
+          mesmo rodapé monótono da home. Aqui as duas viram trilhos dentro de uma
+          faixa única — o mesmo ritmo da home, com assinatura própria. */}
+      {(relacionados.length > 0 || mesmaMarca.length > 0) && (
+        <div className="mv-band">
+          {relacionados.length > 0 && (
+            <section className="mv-section">
+              <div className="mv-sec-head">
+                <div>
+                  <h2 className="mv-sec-title">Produtos relacionados</h2>
+                  <p className="mv-sec-sub">Da mesma categoria</p>
                 </div>
-              )}
-              {/* COR DO CAPACETE — só exibe a linha quando há cor cadastrada.
-                  null/vazio → nenhuma linha (nunca exibe "Cor:" vazia). */}
-              {peca.cor && peca.cor.trim() ? (
-                <div className="flex justify-between py-1.5 border-b border-slate-50">
-                  <span className="text-slate-400">Cor</span>
-                  <span className="font-medium text-slate-700">{peca.cor.trim()}</span>
-                </div>
-              ) : null}
-              <div className="flex justify-between py-1.5 border-b border-slate-50">
-                <span className="text-slate-400">Garantia</span>
-                <span className="font-medium text-slate-700">{garantia}</span>
+                <a href={`/vitrine/catalogo?categoria=${peca.categoria.slug}`} className="mv-sec-link">
+                  Ver categoria
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M9 5l7 7-7 7" /></svg>
+                </a>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-50">
-                <span className="text-slate-400">Disponibilidade</span>
-                <span className={`font-medium ${disponivel ? 'text-emerald-600' : 'text-red-600'}`}>{disponivel ? 'Em estoque (retirada na loja)' : 'Indisponível'}</span>
+              <div className="mv-carrossel">
+                {relacionados.map(p => <CardProdutoPremium key={p.id} p={publicarPeca(p) as any} />)}
               </div>
-            </div>
-          </div>
-
-          {/* Documentos */}
-          {peca.documentos.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-lg font-extrabold text-slate-800 mb-3">📄 Documentos</h2>
-              <div className="flex flex-wrap gap-2">
-                {peca.documentos.map(d => (
-                  <a key={d.id} href={d.url} target="_blank"
-                    className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-brand-50 hover:border-brand-200 hover:text-brand-700 transition-colors">
-                    {d.nome}
-                  </a>
-                ))}
-              </div>
-            </div>
+            </section>
           )}
 
-          {/* Frete e Prazo */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <FretePrazo pecaId={peca.id} />
-          </div>
-
-          {/* Formas de Pagamento */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-4">💳 Formas de Pagamento</h2>
-            <FormasPagamento preco={precoAtual} />
-          </div>
-
-          {/* Avaliações */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-4">⭐ Avaliações</h2>
-            <AvaliacoesVitrine pecaId={peca.id} />
-          </div>
-
-          {/* Perguntas e Respostas */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-4">❓ Perguntas e Respostas</h2>
-            <PerguntasProduto pecaId={peca.id} />
-          </div>
-
+          {mesmaMarca.length > 0 && (
+            <section className="mv-section">
+              <div className="mv-sec-head">
+                <div>
+                  <h2 className="mv-sec-title">Mais da {peca.marca}</h2>
+                  <p className="mv-sec-sub">Outros itens desta marca</p>
+                </div>
+              </div>
+              <div className="mv-carrossel">
+                {mesmaMarca.map(p => <CardProdutoPremium key={p.id} p={publicarPeca(p) as any} />)}
+              </div>
+            </section>
+          )}
         </div>
-
-        {/* Relacionados */}
-        {relacionados.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-4">📦 Produtos Relacionados</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {relacionados.map(p => <CardProdutoPremium key={p.id} p={publicarPeca(p) as any} />)}
-            </div>
-          </div>
-        )}
-
-        {/* Mesma Marca */}
-        {mesmaMarca.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-extrabold text-slate-800 mb-4">🏭 Produtos da mesma marca</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {mesmaMarca.map(p => <CardProdutoPremium key={p.id} p={publicarPeca(p) as any} />)}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
